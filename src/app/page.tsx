@@ -308,7 +308,6 @@ function AssetQuickInfo({ asset, price }: { asset: typeof ASSETS[0]; price?: Ret
 // ============ CHARTS TAB ============
 function ChartsTab() {
   const [selectedAsset, setSelectedAsset] = useState(ASSETS[0]);
-  const [selectedTimeframe, setSelectedTimeframe] = useState('1D');
   const [mounted, setMounted] = useState(false);
   const [price, setPrice] = useState<ReturnType<typeof generatePrice> | null>(null);
 
@@ -322,12 +321,18 @@ function ChartsTab() {
     }
   }, [selectedAsset.symbol, mounted]);
 
-  const tfConfig = TIMEFRAMES.find(t => t.id === selectedTimeframe);
+  // Chart intervals for each timeframe
+  const chartConfigs = [
+    { id: '1D', name: 'Diario', purpose: 'Dirección', interval: 'D', height: 280 },
+    { id: '1H', name: '1 Hora', purpose: 'Estrategia', interval: '60', height: 250 },
+    { id: '5M', name: '5 Min', purpose: 'Ejecución', interval: '5', height: 220 },
+  ];
 
   if (!mounted) return null;
 
   return (
     <div className="flex flex-col h-full">
+      {/* Asset Selector & Price */}
       <div className="p-3 bg-card border-b border-border space-y-3">
         <Select 
           value={selectedAsset.symbol} 
@@ -345,49 +350,50 @@ function ChartsTab() {
           </SelectContent>
         </Select>
         
-        <div className="flex gap-1 bg-muted rounded-lg p-1">
-          {TIMEFRAMES.map((tf) => (
-            <Button
-              key={tf.id}
-              variant={selectedTimeframe === tf.id ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => setSelectedTimeframe(tf.id)}
-              className="flex-1"
-            >
-              {tf.id}
-            </Button>
+        {price && (
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="font-mono text-lg font-bold">
+                {formatPrice(price.price, selectedAsset.symbol)}
+              </div>
+              <div className={cn("text-sm", getChangeClass(price.changePercent))}>
+                {formatPercent(price.changePercent)}
+              </div>
+            </div>
+            <Badge variant={price.change >= 0 ? 'bull' : 'bear'}>
+              {price.change >= 0 ? <TrendingUp className="w-4 h-4 mr-1" /> : <TrendingDown className="w-4 h-4 mr-1" />}
+              {price.change >= 0 ? 'Alcista' : 'Bajista'}
+            </Badge>
+          </div>
+        )}
+      </div>
+
+      {/* Three Charts Stacked */}
+      <ScrollArea className="flex-1">
+        <div className="space-y-2 p-2">
+          {chartConfigs.map((config, index) => (
+            <div key={config.id} className="bg-card rounded-lg border border-border overflow-hidden">
+              {/* Chart Header */}
+              <div className="flex items-center justify-between px-3 py-2 bg-muted/50 border-b border-border">
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="text-xs font-bold">{config.id}</Badge>
+                  <span className="text-sm font-medium">{config.name}</span>
+                </div>
+                <span className="text-xs text-muted-foreground">{config.purpose}</span>
+              </div>
+              
+              {/* Chart iframe */}
+              <div style={{ height: config.height }} className="bg-black/20">
+                <iframe
+                  src={`https://s.tradingview.com/widgetembed/?frameElementId=tv_${config.id}&symbol=${getTVSymbol(selectedAsset.symbol)}&interval=${config.interval}&hidesidetoolbar=1&hidetoptoolbar=1&symboledit=0&saveimage=0&toolbarbg=0a0a0a&studies=%5B%22EMA%40tv-basicstudies%22%5D&theme=dark&style=1&timezone=Etc%2FUTC&withdateranges=1&hidevolume=1`}
+                  style={{ width: '100%', height: '100%', border: 'none' }}
+                  allowFullScreen
+                />
+              </div>
+            </div>
           ))}
         </div>
-        
-        <div className="text-xs text-muted-foreground text-center">
-          {tfConfig?.purpose}
-        </div>
-      </div>
-
-      {price && (
-        <div className="p-3 border-b border-border flex items-center justify-between">
-          <div>
-            <div className="font-mono text-xl font-bold">
-              {formatPrice(price.price, selectedAsset.symbol)}
-            </div>
-            <div className={cn("text-sm", getChangeClass(price.changePercent))}>
-              {formatPercent(price.changePercent)}
-            </div>
-          </div>
-          <Badge variant={price.change >= 0 ? 'bull' : 'bear'}>
-            {price.change >= 0 ? <TrendingUp className="w-4 h-4 mr-1" /> : <TrendingDown className="w-4 h-4 mr-1" />}
-            {price.change >= 0 ? 'Alcista' : 'Bajista'}
-          </Badge>
-        </div>
-      )}
-
-      <div className="flex-1 min-h-[400px] bg-black/20">
-        <iframe
-          src={`https://s.tradingview.com/widgetembed/?frameElementId=tv_widget&symbol=${getTVSymbol(selectedAsset.symbol)}&interval=${tfConfig?.id === '1D' ? 'D' : tfConfig?.id === '1H' ? '60' : '5'}&hidesidetoolbar=1&hidetoptoolbar=1&symboledit=0&saveimage=0&toolbarbg=0a0a0a&studies=%5B%22EMA%40tv-basicstudies%22%5D&theme=dark&style=1&timezone=Etc%2FUTC&withdateranges=1&hidevolume=1`}
-          style={{ width: '100%', height: '100%', border: 'none', minHeight: '400px' }}
-          allowFullScreen
-        />
-      </div>
+      </ScrollArea>
     </div>
   );
 }
