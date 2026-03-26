@@ -1123,21 +1123,56 @@ function AIAnalysisTab() {
 }
 
 // ============ NEWS TAB ============
+interface NewsItem {
+  id: string;
+  title: string;
+  source: string;
+  date: string;
+  url: string;
+  sentiment: 'positive' | 'negative' | 'neutral';
+  sentimentLabel: string;
+  image: string | null;
+}
+
+interface NewsData {
+  articles: NewsItem[];
+  summary: { positive: number; negative: number; neutral: number };
+  highVolatility: boolean;
+  lastUpdate: string;
+}
+
 function NewsTab() {
   const [selectedCurrency, setSelectedCurrency] = useState('all');
   const [mounted, setMounted] = useState(false);
+  const [news, setNews] = useState<NewsData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  const news = [
-    { id: '1', title: 'Fed mantiene tasas de interés sin cambios', summary: 'La Reserva Federal decidió mantener las tasas.', source: 'Reuters', impact: 'high', currency: 'USD' },
-    { id: '2', title: 'BCE considera nuevos estímulos', summary: 'El Banco Central Europeo evalúa medidas.', source: 'Bloomberg', impact: 'high', currency: 'EUR' },
-    { id: '3', title: 'Bitcoin alcanza nuevos máximos', summary: 'La criptomoneda líder supera los $68,000.', source: 'CoinDesk', impact: 'medium', currency: 'BTC' },
-    { id: '4', title: 'Libra esterlina se fortalece', summary: 'Datos positivos del PIB británico.', source: 'Financial Times', impact: 'medium', currency: 'GBP' },
-    { id: '5', title: 'Yen japonés bajo presión', summary: 'El Bank of Japan mantiene su política.', source: 'Nikkei', impact: 'medium', currency: 'JPY' },
-  ];
+  // Fetch real news every 60 seconds
+  useEffect(() => {
+    if (!mounted) return;
+
+    const fetchNews = async () => {
+      try {
+        const response = await fetch('/api/news');
+        const data = await response.json();
+        setNews(data);
+        setLastUpdate(new Date());
+      } catch (error) {
+        console.error('Error fetching news:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchNews();
+    const interval = setInterval(fetchNews, 60000); // Update every 60 seconds
+    return () => clearInterval(interval);
+  }, [mounted]);
 
   const currencies = [
     { id: 'all', name: 'Todas' },
@@ -1148,13 +1183,43 @@ function NewsTab() {
     { id: 'BTC', name: 'Crypto' },
   ];
 
-  const filteredNews = selectedCurrency === 'all' ? news : news.filter(n => n.currency === selectedCurrency);
+  // Filter news by currency keyword
+  const filteredNews = selectedCurrency === 'all' 
+    ? (news?.articles || [])
+    : (news?.articles || []).filter(n => {
+        const title = n.title.toLowerCase();
+        const currencyKeywords: Record<string, string[]> = {
+          'USD': ['dollar', 'usd', 'fed', 'federal reserve', 'us economy'],
+          'EUR': ['euro', 'eur', 'ecb', 'european central', 'europe'],
+          'GBP': ['pound', 'gbp', 'boe', 'bank of england', 'uk', 'britain'],
+          'JPY': ['yen', 'jpy', 'boj', 'bank of japan', 'japan'],
+          'BTC': ['bitcoin', 'btc', 'crypto', 'cryptocurrency']
+        };
+        return currencyKeywords[selectedCurrency]?.some(k => title.includes(k)) || false;
+      });
 
   if (!mounted) return null;
 
   return (
     <div className="flex flex-col h-full">
+      {/* Header with last update time */}
       <div className="p-3 bg-card border-b border-border">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <Newspaper className="w-4 h-4 text-muted-foreground" />
+            <span className="text-xs text-muted-foreground">Noticias en Tiempo Real</span>
+          </div>
+          {lastUpdate && (
+            <div className="flex items-center gap-1">
+              <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+              <span className="text-xs text-muted-foreground">
+                {lastUpdate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
+              </span>
+            </div>
+          )}
+        </div>
+        
+        {/* Currency Filter */}
         <div className="flex gap-2 overflow-x-auto">
           {currencies.map((currency) => (
             <Button
@@ -1169,34 +1234,91 @@ function NewsTab() {
         </div>
       </div>
 
+      {/* Sentiment Summary */}
+      {news && (
+        <div className="p-3 bg-muted/30 border-b border-border">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-1">
+                <div className="w-3 h-3 bg-green-500 rounded-full" />
+                <span className="text-xs">{news.summary.positive} Positivas</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-3 h-3 bg-red-500 rounded-full" />
+                <span className="text-xs">{news.summary.negative} Negativas</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-3 h-3 bg-yellow-500 rounded-full" />
+                <span className="text-xs">{news.summary.neutral} Neutrales</span>
+              </div>
+            </div>
+            {news.highVolatility && (
+              <Badge variant="bear" className="text-xs animate-pulse">
+                <Zap className="w-3 h-3 mr-1" />
+                Alta Volatilidad
+              </Badge>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* News List */}
       <ScrollArea className="flex-1">
         <div className="p-3 space-y-3">
-          {filteredNews.map((item) => (
-            <Card key={item.id}>
-              <CardContent className="p-3">
-                <div className="flex items-start gap-3">
-                  <div className={cn("w-2 h-2 rounded-full mt-2", 
-                    item.impact === 'high' ? 'bg-red-500' : item.impact === 'medium' ? 'bg-yellow-500' : 'bg-green-500'
-                  )} />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between mb-1">
-                      <Badge variant="outline" className="text-xs">{item.currency}</Badge>
-                    </div>
-                    <h3 className="font-semibold text-sm mb-1">{item.title}</h3>
-                    <p className="text-xs text-muted-foreground line-clamp-2">{item.summary}</p>
-                    <div className="flex items-center justify-between mt-2">
-                      <span className="text-xs text-muted-foreground">{item.source}</span>
-                      <Badge variant={item.impact === 'high' ? 'bear' : 'neutral'}>
-                        {item.impact === 'high' ? 'Alto' : 'Medio'}
-                      </Badge>
+          {loading ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <Activity className="w-8 h-8 mx-auto mb-2 animate-pulse" />
+              <p>Cargando noticias...</p>
+            </div>
+          ) : filteredNews.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <Newspaper className="w-8 h-8 mx-auto mb-2" />
+              <p>No hay noticias para este filtro</p>
+            </div>
+          ) : (
+            filteredNews.map((item) => (
+              <Card 
+                key={item.id} 
+                className="cursor-pointer hover:bg-accent/50 transition-colors"
+                onClick={() => item.url && window.open(item.url, '_blank')}
+              >
+                <CardContent className="p-3">
+                  <div className="flex items-start gap-3">
+                    <div className={cn("w-2 h-2 rounded-full mt-2 flex-shrink-0", 
+                      item.sentiment === 'positive' ? 'bg-green-500' : 
+                      item.sentiment === 'negative' ? 'bg-red-500' : 'bg-yellow-500'
+                    )} />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-1">
+                        <Badge 
+                          variant={item.sentiment === 'positive' ? 'bull' : item.sentiment === 'negative' ? 'bear' : 'neutral'}
+                          className="text-xs"
+                        >
+                          {item.sentimentLabel}
+                        </Badge>
+                        <span className="text-xs text-muted-foreground">{item.date}</span>
+                      </div>
+                      <h3 className="font-semibold text-sm mb-1 line-clamp-2">{item.title}</h3>
+                      <div className="flex items-center justify-between mt-2">
+                        <span className="text-xs text-muted-foreground">{item.source}</span>
+                        <ArrowUpRight className="w-3 h-3 text-muted-foreground" />
+                      </div>
                     </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </CardContent>
+              </Card>
+            ))
+          )}
         </div>
       </ScrollArea>
+
+      {/* Auto-refresh indicator */}
+      <div className="p-2 bg-muted/50 border-t border-border">
+        <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+          <Clock className="w-3 h-3" />
+          <span>Actualización automática cada 60 segundos</span>
+        </div>
+      </div>
     </div>
   );
 }
