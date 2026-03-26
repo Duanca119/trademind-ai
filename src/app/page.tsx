@@ -9,24 +9,19 @@ import {
   Target, 
   Brain,
   Newspaper,
-  ChevronRight,
   Clock,
-  AlertTriangle,
   CheckCircle,
   XCircle,
-  Minus,
   ArrowUpRight,
   ArrowDownRight,
   Zap,
-  Shield,
   DollarSign
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   Select, 
   SelectContent, 
@@ -36,25 +31,21 @@ import {
 } from '@/components/ui/select';
 import { cn, formatPrice, formatPercent, getChangeClass, getMarketSessions } from '@/lib/utils';
 import { ASSETS, TIMEFRAMES, ASSET_CATEGORIES, getTradingViewSymbol } from '@/lib/assets';
-import { Asset, Timeframe, PriceData, FinalDecision } from '@/types/trading';
-import { useMarketData, useAssetPrice, useCandles } from '@/hooks/use-market-data';
+import { Asset, Timeframe, PriceData } from '@/types/trading';
+import { useMarketData } from '@/hooks/use-market-data';
 import { useTradingAnalysis } from '@/hooks/use-trading-analysis';
 
 // ============ DASHBOARD TAB ============
 function DashboardTab() {
   const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
   const [category, setCategory] = useState<string>('all');
-  const { prices, loading, error } = useMarketData();
+  const { prices } = useMarketData();
   const sessions = getMarketSessions();
   
   const filteredAssets = useMemo(() => {
     if (category === 'all') return ASSETS;
     return ASSETS.filter(a => a.category === category);
   }, [category]);
-
-  const handleAssetSelect = (asset: Asset) => {
-    setSelectedAsset(asset);
-  };
 
   return (
     <div className="flex flex-col h-full">
@@ -100,7 +91,7 @@ function DashboardTab() {
             return (
               <button
                 key={asset.symbol}
-                onClick={() => handleAssetSelect(asset)}
+                onClick={() => setSelectedAsset(asset)}
                 className={cn(
                   "w-full p-3 rounded-lg flex items-center justify-between transition-all",
                   "hover:bg-accent/50",
@@ -136,7 +127,7 @@ function DashboardTab() {
 }
 
 function AssetQuickInfo({ asset, price }: { asset: Asset; price?: PriceData }) {
-  const { decision, loading } = useTradingAnalysis(asset.symbol);
+  const { decision } = useTradingAnalysis(asset.symbol);
 
   return (
     <div className="space-y-2">
@@ -153,7 +144,6 @@ function AssetQuickInfo({ asset, price }: { asset: Asset; price?: PriceData }) {
           <Progress 
             value={decision.probability} 
             className="h-2 flex-1"
-            indicatorClassName={decision.action === 'BUY' ? 'bg-green-500' : decision.action === 'SELL' ? 'bg-red-500' : 'bg-yellow-500'}
           />
           <span className="text-xs text-muted-foreground">{decision.probability}%</span>
         </div>
@@ -184,7 +174,12 @@ function AssetQuickInfo({ asset, price }: { asset: Asset; price?: PriceData }) {
 function ChartsTab() {
   const [selectedAsset, setSelectedAsset] = useState<Asset>(ASSETS[0]);
   const [selectedTimeframe, setSelectedTimeframe] = useState<Timeframe>('1D');
+  const [mounted, setMounted] = useState(false);
   const { prices } = useMarketData();
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const tradingViewSymbol = getTradingViewSymbol(selectedAsset.symbol);
   const timeframeConfig = TIMEFRAMES.find(t => t.id === selectedTimeframe);
@@ -194,23 +189,21 @@ function ChartsTab() {
     <div className="flex flex-col h-full">
       {/* Asset & Timeframe Selector */}
       <div className="p-3 bg-card border-b border-border space-y-3">
-        <div className="flex gap-2">
-          <Select 
-            value={selectedAsset.symbol} 
-            onValueChange={(v) => setSelectedAsset(ASSETS.find(a => a.symbol === v) || ASSETS[0])}
-          >
-            <SelectTrigger className="flex-1">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {ASSETS.map((asset) => (
-                <SelectItem key={asset.symbol} value={asset.symbol}>
-                  {asset.symbol}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        <Select 
+          value={selectedAsset.symbol} 
+          onValueChange={(v) => setSelectedAsset(ASSETS.find(a => a.symbol === v) || ASSETS[0])}
+        >
+          <SelectTrigger className="flex-1">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {ASSETS.map((asset) => (
+              <SelectItem key={asset.symbol} value={asset.symbol}>
+                {asset.symbol}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         
         {/* Timeframe Tabs */}
         <div className="flex gap-1 bg-muted rounded-lg p-1">
@@ -253,42 +246,23 @@ function ChartsTab() {
 
       {/* TradingView Chart */}
       <div className="flex-1 min-h-[400px] bg-black/20">
-        <TradingViewWidget 
-          symbol={tradingViewSymbol} 
-          interval={timeframeConfig?.tradingviewInterval || 'D'} 
-        />
+        {mounted ? (
+          <iframe
+            src={`https://s.tradingview.com/widgetembed/?frameElementId=tradingview_widget&symbol=${tradingViewSymbol}&interval=${timeframeConfig?.tradingviewInterval || 'D'}&hidesidetoolbar=1&hidetoptoolbar=1&symboledit=0&saveimage=0&toolbarbg=f1f3f6&studies=%5B%22EMA%40tv-basicstudies%22%5D&theme=dark&style=1&timezone=Etc%2FUTC&withdateranges=1&hidevolume=1`}
+            style={{
+              width: '100%',
+              height: '100%',
+              border: 'none',
+              minHeight: '400px',
+            }}
+            allowFullScreen
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center">
+            <Activity className="w-8 h-8 animate-pulse text-muted-foreground" />
+          </div>
+        )}
       </div>
-    </div>
-  );
-}
-
-function TradingViewWidget({ symbol, interval }: { symbol: string; interval: string }) {
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  if (!mounted) {
-    return (
-      <div className="w-full h-full flex items-center justify-center">
-        <Activity className="w-8 h-8 animate-pulse text-muted-foreground" />
-      </div>
-    );
-  }
-
-  return (
-    <div className="w-full h-full" style={{ minHeight: '400px' }}>
-      <iframe
-        src={`https://s.tradingview.com/widgetembed/?frameElementId=tradingview_widget&symbol=${symbol}&interval=${interval}&hidesidetoolbar=1&hidetoptoolbar=1&symboledit=0&saveimage=0&toolbarbg=f1f3f6&studies=%5B%22EMA%40tv-basicstudies%22%5D&theme=dark&style=1&timezone=Etc%2FUTC&withdateranges=1&hidevolume=1`}
-        style={{
-          width: '100%',
-          height: '100%',
-          border: 'none',
-          minHeight: '400px',
-        }}
-        allowFullScreen
-      />
     </div>
   );
 }
@@ -296,9 +270,13 @@ function TradingViewWidget({ symbol, interval }: { symbol: string; interval: str
 // ============ OPERATION TAB ============
 function OperationTab() {
   const [selectedAsset, setSelectedAsset] = useState<Asset>(ASSETS[0]);
+  const [mounted, setMounted] = useState(false);
   const { prices } = useMarketData();
   const { decision, loading } = useTradingAnalysis(selectedAsset.symbol);
-  const currentPrice = prices.get(selectedAsset.symbol);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const tradingViewSymbol = getTradingViewSymbol(selectedAsset.symbol);
 
@@ -325,10 +303,22 @@ function OperationTab() {
 
       {/* Chart with zones */}
       <div className="flex-1 min-h-[350px] bg-black/20 relative">
-        <TradingViewWidget 
-          symbol={tradingViewSymbol} 
-          interval="15"
-        />
+        {mounted ? (
+          <iframe
+            src={`https://s.tradingview.com/widgetembed/?frameElementId=tradingview_widget&symbol=${tradingViewSymbol}&interval=15&hidesidetoolbar=1&hidetoptoolbar=1&symboledit=0&saveimage=0&toolbarbg=f1f3f6&studies=%5B%22EMA%40tv-basicstudies%22%5D&theme=dark&style=1&timezone=Etc%2FUTC&withdateranges=1&hidevolume=1`}
+            style={{
+              width: '100%',
+              height: '100%',
+              border: 'none',
+              minHeight: '350px',
+            }}
+            allowFullScreen
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center">
+            <Activity className="w-6 h-6 animate-pulse" />
+          </div>
+        )}
         
         {/* Overlay Zones */}
         {decision && decision.entry && (
@@ -434,8 +424,6 @@ function OperationTab() {
 function AIAnalysisTab() {
   const [selectedAsset, setSelectedAsset] = useState<Asset>(ASSETS[0]);
   const { decision, loading } = useTradingAnalysis(selectedAsset.symbol);
-  const { prices } = useMarketData();
-  const currentPrice = prices.get(selectedAsset.symbol);
 
   return (
     <div className="flex flex-col h-full">
@@ -490,15 +478,8 @@ function AIAnalysisTab() {
                   <Progress 
                     value={decision.probability}
                     className="h-3"
-                    indicatorClassName={
-                      decision.action === 'BUY' ? 'bg-green-500' : 
-                      decision.action === 'SELL' ? 'bg-red-500' : 'bg-yellow-500'
-                    }
                   />
                   <p className="text-sm text-muted-foreground mt-3">{decision.strategy}</p>
-                  {decision.notes && (
-                    <p className="text-xs text-muted-foreground mt-2">{decision.notes}</p>
-                  )}
                 </CardContent>
               </Card>
 
@@ -694,12 +675,11 @@ function AIAnalysisTab() {
 function NewsTab() {
   const [selectedCurrency, setSelectedCurrency] = useState<string>('all');
   
-  // Simulated news (in production, fetch from real API)
   const news = [
     {
       id: '1',
       title: 'Fed mantiene tasas de interés sin cambios',
-      summary: 'La Reserva Federal decidió mantener las tasas en el rango actual, señalando vigilancia sobre la inflación.',
+      summary: 'La Reserva Federal decidió mantener las tasas en el rango actual.',
       source: 'Reuters',
       timestamp: Date.now() - 3600000,
       impact: 'high' as const,
@@ -708,7 +688,7 @@ function NewsTab() {
     {
       id: '2',
       title: 'BCE considera nuevos estímulos económicos',
-      summary: 'El Banco Central Europeo evalúa medidas adicionales para impulsar el crecimiento económico.',
+      summary: 'El Banco Central Europeo evalúa medidas adicionales.',
       source: 'Bloomberg',
       timestamp: Date.now() - 7200000,
       impact: 'high' as const,
@@ -717,7 +697,7 @@ function NewsTab() {
     {
       id: '3',
       title: 'Bitcoin alcanza nuevos máximos mensuales',
-      summary: 'La criptomoneda líder supera los $68,000 impulsada por la demanda institucional.',
+      summary: 'La criptomoneda líder supera los $68,000.',
       source: 'CoinDesk',
       timestamp: Date.now() - 1800000,
       impact: 'medium' as const,
@@ -725,8 +705,8 @@ function NewsTab() {
     },
     {
       id: '4',
-      title: 'Libra esterlina se fortalece tras datos económicos',
-      summary: 'Datos positivos del PIB británico impulsan la moneda frente al dólar.',
+      title: 'Libra esterlina se fortalece',
+      summary: 'Datos positivos del PIB británico impulsan la moneda.',
       source: 'Financial Times',
       timestamp: Date.now() - 5400000,
       impact: 'medium' as const,
@@ -735,7 +715,7 @@ function NewsTab() {
     {
       id: '5',
       title: 'Yen japonés bajo presión',
-      summary: 'El Bank of Japan mantiene su política ultraaccomodativa, debilitando el yen.',
+      summary: 'El Bank of Japan mantiene su política ultraaccomodativa.',
       source: 'Nikkei',
       timestamp: Date.now() - 9000000,
       impact: 'medium' as const,
@@ -836,16 +816,14 @@ export default function TradeMindAI() {
   ];
 
   return (
-    <div className="flex flex-col h-screen bg-background safe-area-top">
+    <div className="flex flex-col h-screen bg-background">
       {/* Header */}
       <header className="flex items-center justify-between p-3 border-b border-border bg-card">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
             <TrendingUp className="w-5 h-5 text-primary-foreground" />
           </div>
-          <div>
-            <h1 className="font-bold text-lg">TradeMind AI</h1>
-          </div>
+          <h1 className="font-bold text-lg">TradeMind AI</h1>
         </div>
         <Badge variant="outline" className="text-xs">
           <Activity className="w-3 h-3 mr-1" />
@@ -863,7 +841,7 @@ export default function TradeMindAI() {
       </main>
 
       {/* Bottom Navigation */}
-      <nav className="border-t border-border bg-card safe-area-bottom">
+      <nav className="border-t border-border bg-card">
         <div className="flex justify-around items-center py-2">
           {tabs.map((tab) => {
             const Icon = tab.icon;
