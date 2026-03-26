@@ -1,19 +1,7 @@
 import { NextResponse } from 'next/server'
 
-// NewsAPI configuration
-const NEWS_API_URL = 'https://newsapi.org/v2/everything'
-const API_KEY = 'pub_c938a7f9fc5548c7b0504029bbb67791'
-
-interface NewsArticle {
-  source: { id: string | null; name: string }
-  author: string | null
-  title: string
-  description: string | null
-  url: string
-  urlToImage: string | null
-  publishedAt: string
-  content: string | null
-}
+// Dynamic rendering to avoid build-time errors
+export const dynamic = 'force-dynamic'
 
 interface ClassifiedNews {
   id: string
@@ -27,9 +15,9 @@ interface ClassifiedNews {
 }
 
 // Keywords for sentiment classification
-const positiveKeywords = ['sube', 'récord', 'crece', 'alcista', 'subida', 'ganancia', 'éxito', 'adopción', 'aprobación', 'bull', 'rally', 'all-time high', 'ath', 'positive', 'surge', 'soars', 'rise', 'gains', 'breakthrough']
-const negativeKeywords = ['cae', 'crisis', 'prohibición', 'bajista', 'caída', 'pérdida', 'fraude', 'hack', 'baja', 'crash', 'bear', 'decline', 'drops', 'ban', 'regulation', 'sec', 'sues', 'plunge', 'sell-off']
-const volatilityKeywords = ['volatilidad', 'volátil', 'incertidumbre', 'inestable', 'fluctuación', 'volatile', 'uncertainty']
+const positiveKeywords = ['sube', 'récord', 'crece', 'alcista', 'subida', 'ganancia', 'éxito', 'adopción', 'aprobación', 'bull', 'rally', 'all-time high', 'ath', 'positive', 'surge', 'soars', 'rise', 'gains', 'breakthrough', 'high', 'jump', 'soar']
+const negativeKeywords = ['cae', 'crisis', 'prohibición', 'bajista', 'caída', 'pérdida', 'fraude', 'hack', 'baja', 'crash', 'bear', 'decline', 'drops', 'ban', 'regulation', 'sec', 'sues', 'plunge', 'sell-off', 'fall', 'drop', 'low', 'fear']
+const volatilityKeywords = ['volatilidad', 'volátil', 'incertidumbre', 'inestable', 'fluctuación', 'volatile', 'uncertainty', 'alert', 'warning']
 
 function classifySentiment(title: string, description: string | null): 'positive' | 'negative' | 'neutral' {
   const text = `${title} ${description || ''}`.toLowerCase()
@@ -60,24 +48,90 @@ function checkHighVolatility(articles: ClassifiedNews[]): boolean {
   return recentNegative >= 2 || volatilityMentions >= 1
 }
 
+// Try multiple news sources
+async function fetchNewsFromMultipleSources(): Promise<ClassifiedNews[]> {
+  // Try CryptoPanic API (free, no key needed for basic)
+  try {
+    const response = await fetch('https://cryptopanic.com/api/v1/posts/?public=true&currencies=BTC', {
+      next: { revalidate: 300 },
+      headers: { 'Accept': 'application/json' }
+    })
+    
+    if (response.ok) {
+      const data = await response.json()
+      if (data.results && data.results.length > 0) {
+        return data.results.slice(0, 10).map((item: any, index: number) => ({
+          id: `news-${index}`,
+          title: item.title || 'Crypto News',
+          source: item.source?.domain || 'CryptoPanic',
+          date: formatTimeAgo(item.created_at),
+          url: item.url || '#',
+          sentiment: classifySentiment(item.title, ''),
+          sentimentLabel: getSentimentLabel(classifySentiment(item.title, '')),
+          image: null
+        }))
+      }
+    }
+  } catch (e) {
+    console.log('CryptoPanic API not available, trying next source')
+  }
+
+  // Try Binance News API
+  try {
+    const response = await fetch('https://www.binance.com/bapi/composite/v1/public/cms/article/catalog/list/query', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 1,
+        catalogId: 48,
+        pageNo: 1,
+        pageSize: 10
+      }),
+      next: { revalidate: 300 }
+    })
+    
+    if (response.ok) {
+      const data = await response.json()
+      if (data.data?.articles?.length > 0) {
+        return data.data.articles.slice(0, 10).map((item: any, index: number) => ({
+          id: `news-${index}`,
+          title: item.title || 'Crypto News',
+          source: 'Binance News',
+          date: formatTimeAgo(item.releaseDate),
+          url: `https://www.binance.com/en/news/${item.id}`,
+          sentiment: classifySentiment(item.title, ''),
+          sentimentLabel: getSentimentLabel(classifySentiment(item.title, '')),
+          image: null
+        }))
+      }
+    }
+  } catch (e) {
+    console.log('Binance News API not available')
+  }
+
+  // Return mock data if all APIs fail
+  return getMockNews()
+}
+
 export async function GET() {
   try {
-    // Fetch Bitcoin news
-    const url = `${NEWS_API_URL}?q=bitcoin OR btc OR cryptocurrency&language=en&sortBy=publishedAt&pageSize=10&apiKey=${API_KEY}`
-    
-    const response = await fetch(url, { next: { revalidate: 300 } }) // Cache for 5 minutes
-    
-    if (!response.ok) {
-      throw new Error('Failed to fetch news')
+    // Check if we're in build mode
+    if (process.env.NODE_ENV === 'production' && process.env.NEXT_PHASE === 'phase-production-build') {
+      return NextResponse.json({ 
+        articles: getMockNews(),
+        summary: { positive: 2, negative: 1, neutral: 2 },
+        highVolatility: false,
+        lastUpdate: new Date().toISOString(),
+        source: 'mock'
+      })
     }
-    
-    const data = await response.json()
-    const classifiedNews = classifyArticles(data.articles || [])
+
+    const articles = await fetchNewsFromMultipleSources()
     
     return NextResponse.json({ 
-      articles: classifiedNews,
-      summary: generateSummary(classifiedNews),
-      highVolatility: checkHighVolatility(classifiedNews),
+      articles,
+      summary: generateSummary(articles),
+      highVolatility: checkHighVolatility(articles),
       lastUpdate: new Date().toISOString()
     })
     
@@ -85,27 +139,15 @@ export async function GET() {
     console.error('News API error:', error)
     
     // Return fallback mock data
+    const mockArticles = getMockNews()
     return NextResponse.json({ 
-      articles: getMockNews(),
-      summary: { positive: 2, negative: 1, neutral: 2 },
+      articles: mockArticles,
+      summary: generateSummary(mockArticles),
       highVolatility: false,
       lastUpdate: new Date().toISOString(),
-      error: 'Using cached data'
+      source: 'fallback'
     })
   }
-}
-
-function classifyArticles(articles: NewsArticle[]): ClassifiedNews[] {
-  return articles.map((article, index) => ({
-    id: `news-${index}`,
-    title: article.title,
-    source: article.source.name,
-    date: formatTimeAgo(article.publishedAt),
-    url: article.url,
-    sentiment: classifySentiment(article.title, article.description),
-    sentimentLabel: getSentimentLabel(classifySentiment(article.title, article.description)),
-    image: article.urlToImage
-  }))
 }
 
 function getSentimentLabel(sentiment: 'positive' | 'negative' | 'neutral'): string {
@@ -142,10 +184,11 @@ function generateSummary(articles: ClassifiedNews[]): { positive: number; negati
 }
 
 function getMockNews(): ClassifiedNews[] {
+  const now = new Date()
   return [
     {
       id: 'mock-1',
-      title: 'Bitcoin maintains key support as investors await regulatory decisions',
+      title: 'Bitcoin mantiene soporte clave mientras inversores esperan decisiones regulatorias',
       source: 'Crypto News',
       date: 'Hace 1h',
       url: '#',
@@ -155,7 +198,7 @@ function getMockNews(): ClassifiedNews[] {
     },
     {
       id: 'mock-2',
-      title: 'Institutions increase Bitcoin exposure in diversified portfolios',
+      title: 'Institucionales aumentan exposición a Bitcoin en carteras diversificadas',
       source: 'Finance Daily',
       date: 'Hace 2h',
       url: '#',
@@ -165,7 +208,7 @@ function getMockNews(): ClassifiedNews[] {
     },
     {
       id: 'mock-3',
-      title: 'Technical analysis: Bitcoin in consolidation zone before next move',
+      title: 'Análisis técnico: Bitcoin en zona de consolidación antes del siguiente movimiento',
       source: 'Trading View',
       date: 'Hace 3h',
       url: '#',
@@ -175,7 +218,7 @@ function getMockNews(): ClassifiedNews[] {
     },
     {
       id: 'mock-4',
-      title: 'Bitcoin adoption grows in countries with high inflation',
+      title: 'Adopción de Bitcoin crece en países con alta inflación',
       source: 'Economic Times',
       date: 'Hace 4h',
       url: '#',
@@ -185,7 +228,7 @@ function getMockNews(): ClassifiedNews[] {
     },
     {
       id: 'mock-5',
-      title: 'Volatility alert: Crypto market awaits important economic data',
+      title: 'Alerta de volatilidad: Mercado crypto espera datos económicos importantes',
       source: 'Market Watch',
       date: 'Hace 5h',
       url: '#',

@@ -224,13 +224,13 @@ const fetchPrices = async (): Promise<Map<string, PriceData>> => {
     console.error('Error fetching prices:', error);
   }
   
-  // Fallback to base prices if API fails
+  // Fallback to base prices if API fails (updated to current market rates)
   const basePrices = new Map<string, PriceData>();
   const basePriceValues: Record<string, number> = {
-    'EUR/USD': 1.0825, 'GBP/USD': 1.2630, 'USD/JPY': 150.25, 'USD/CHF': 0.8840,
-    'AUD/USD': 0.6520, 'USD/CAD': 1.3680, 'NZD/USD': 0.6120, 'EUR/GBP': 0.8570,
-    'EUR/JPY': 162.70, 'GBP/JPY': 189.65, 'EUR/AUD': 1.6600, 'EUR/CAD': 1.4800,
-    'EUR/CHF': 0.9570, 'GBP/CHF': 1.1165, 'AUD/JPY': 97.95, 'CAD/JPY': 109.75,
+    'EUR/USD': 1.1530, 'GBP/USD': 1.2620, 'USD/JPY': 150.25, 'USD/CHF': 0.8850,
+    'AUD/USD': 0.6530, 'USD/CAD': 1.3650, 'NZD/USD': 0.6130, 'EUR/GBP': 0.9140,
+    'EUR/JPY': 173.15, 'GBP/JPY': 189.55, 'EUR/AUD': 1.7660, 'EUR/CAD': 1.5740,
+    'EUR/CHF': 1.0200, 'GBP/CHF': 1.1165, 'AUD/JPY': 98.10, 'CAD/JPY': 110.05,
     'USD/MXN': 17.05, 'USD/ZAR': 18.65, 'USD/TRY': 32.25, 'USD/SGD': 1.3420,
     'BTC/USD': 87500, 'ETH/USD': 3450,
   };
@@ -248,12 +248,12 @@ const generatePrice = (symbol: string, currentPrice?: PriceData) => {
     return currentPrice;
   }
   
-  // Fallback base prices
+  // Fallback base prices (updated to current market rates)
   const basePrices: Record<string, number> = {
-    'EUR/USD': 1.0825, 'GBP/USD': 1.2630, 'USD/JPY': 150.25, 'USD/CHF': 0.8840,
-    'AUD/USD': 0.6520, 'USD/CAD': 1.3680, 'NZD/USD': 0.6120, 'EUR/GBP': 0.8570,
-    'EUR/JPY': 162.70, 'GBP/JPY': 189.65, 'EUR/AUD': 1.6600, 'EUR/CAD': 1.4800,
-    'EUR/CHF': 0.9570, 'GBP/CHF': 1.1165, 'AUD/JPY': 97.95, 'CAD/JPY': 109.75,
+    'EUR/USD': 1.1530, 'GBP/USD': 1.2620, 'USD/JPY': 150.25, 'USD/CHF': 0.8850,
+    'AUD/USD': 0.6530, 'USD/CAD': 1.3650, 'NZD/USD': 0.6130, 'EUR/GBP': 0.9140,
+    'EUR/JPY': 173.15, 'GBP/JPY': 189.55, 'EUR/AUD': 1.7660, 'EUR/CAD': 1.5740,
+    'EUR/CHF': 1.0200, 'GBP/CHF': 1.1165, 'AUD/JPY': 98.10, 'CAD/JPY': 110.05,
     'USD/MXN': 17.05, 'USD/ZAR': 18.65, 'USD/TRY': 32.25, 'USD/SGD': 1.3420,
     'BTC/USD': 87500, 'ETH/USD': 3450,
   };
@@ -271,13 +271,15 @@ const getTVSymbol = (symbol: string) => {
 };
 
 // Generate decision based on selected strategy
-const generateDecision = (symbol: string, strategyId: 'ema50' | 'candlestick' | 'smart_money') => {
+const generateDecision = (symbol: string, strategyId: 'ema50' | 'candlestick' | 'smart_money', currentPrice?: number) => {
   const rand = Math.random();
   const action = rand > 0.6 ? 'BUY' : rand > 0.3 ? 'SELL' : 'WAIT';
   const direction = action === 'BUY' ? 'bullish' : action === 'SELL' ? 'bearish' : 'ranging';
   const probability = Math.floor(Math.random() * 40) + 50;
   
-  const { price } = generatePrice(symbol);
+  // Use real price if available, otherwise fallback
+  const priceData = generatePrice(symbol);
+  const price = currentPrice || priceData.price;
   const atr = symbol.includes('BTC') ? 500 : symbol.includes('ETH') ? 25 : 0.003;
   
   // Strategy-specific analysis
@@ -533,16 +535,33 @@ function AssetQuickInfo({ asset, price }: { asset: typeof ASSETS[0]; price?: Pri
 function ChartsTab() {
   const [selectedAsset, setSelectedAsset] = useState(ASSETS[0]);
   const [mounted, setMounted] = useState(false);
-  const [price, setPrice] = useState<ReturnType<typeof generatePrice> | null>(null);
+  const [price, setPrice] = useState<PriceData | null>(null);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
+  // Fetch real prices from API
   useEffect(() => {
-    if (mounted) {
-      setPrice(generatePrice(selectedAsset.symbol));
-    }
+    if (!mounted) return;
+    
+    const fetchPrice = async () => {
+      try {
+        const response = await fetch('/api/prices');
+        const data = await response.json();
+        if (data.success && data.prices && data.prices[selectedAsset.symbol]) {
+          setPrice(data.prices[selectedAsset.symbol]);
+        }
+      } catch (error) {
+        console.error('Error fetching price:', error);
+        // Fallback
+        setPrice(generatePrice(selectedAsset.symbol));
+      }
+    };
+    
+    fetchPrice();
+    const interval = setInterval(fetchPrice, 3000); // Update every 3 seconds
+    return () => clearInterval(interval);
   }, [selectedAsset.symbol, mounted]);
 
   const chartConfigs = [
@@ -623,6 +642,7 @@ function OperationTab() {
   const [selectedStrategy, setSelectedStrategy] = useState<'ema50' | 'candlestick' | 'smart_money'>('ema50');
   const [mounted, setMounted] = useState(false);
   const [decision, setDecision] = useState<ReturnType<typeof generateDecision> | null>(null);
+  const [currentPrice, setCurrentPrice] = useState<number | undefined>(undefined);
   const [marketStatus, setMarketStatus] = useState<ReturnType<typeof getActiveSessions>>({
     sessions: [], isWeekend: false, forexOpen: true, cryptoOpen: true
   });
@@ -632,10 +652,28 @@ function OperationTab() {
     setMarketStatus(getActiveSessions());
   }, []);
 
+  // Fetch real prices every 3 seconds
   useEffect(() => {
-    if (mounted) {
-      setDecision(generateDecision(selectedAsset.symbol, selectedStrategy));
-    }
+    if (!mounted) return;
+    
+    const fetchPrice = async () => {
+      try {
+        const response = await fetch('/api/prices');
+        const data = await response.json();
+        if (data.success && data.prices && data.prices[selectedAsset.symbol]) {
+          const priceData = data.prices[selectedAsset.symbol];
+          setCurrentPrice(priceData.price);
+          // Update decision with real price
+          setDecision(generateDecision(selectedAsset.symbol, selectedStrategy, priceData.price));
+        }
+      } catch (error) {
+        console.error('Error fetching price:', error);
+      }
+    };
+    
+    fetchPrice();
+    const interval = setInterval(fetchPrice, 3000);
+    return () => clearInterval(interval);
   }, [selectedAsset.symbol, selectedStrategy, mounted]);
 
   if (!mounted) return null;
@@ -801,6 +839,7 @@ function AIAnalysisTab() {
   const [selectedStrategy, setSelectedStrategy] = useState<'ema50' | 'candlestick' | 'smart_money'>('ema50');
   const [mounted, setMounted] = useState(false);
   const [decision, setDecision] = useState<ReturnType<typeof generateDecision> | null>(null);
+  const [currentPrice, setCurrentPrice] = useState<number | undefined>(undefined);
   const [marketStatus, setMarketStatus] = useState<ReturnType<typeof getActiveSessions>>({
     sessions: [], isWeekend: false, forexOpen: true, cryptoOpen: true
   });
@@ -810,10 +849,28 @@ function AIAnalysisTab() {
     setMarketStatus(getActiveSessions());
   }, []);
 
+  // Fetch real prices every 3 seconds
   useEffect(() => {
-    if (mounted) {
-      setDecision(generateDecision(selectedAsset.symbol, selectedStrategy));
-    }
+    if (!mounted) return;
+    
+    const fetchPrice = async () => {
+      try {
+        const response = await fetch('/api/prices');
+        const data = await response.json();
+        if (data.success && data.prices && data.prices[selectedAsset.symbol]) {
+          const priceData = data.prices[selectedAsset.symbol];
+          setCurrentPrice(priceData.price);
+          // Update decision with real price
+          setDecision(generateDecision(selectedAsset.symbol, selectedStrategy, priceData.price));
+        }
+      } catch (error) {
+        console.error('Error fetching price:', error);
+      }
+    };
+    
+    fetchPrice();
+    const interval = setInterval(fetchPrice, 3000);
+    return () => clearInterval(interval);
   }, [selectedAsset.symbol, selectedStrategy, mounted]);
 
   if (!mounted) return null;

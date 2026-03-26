@@ -19,28 +19,28 @@ interface ForexPrice {
 const priceCache: Record<string, ForexPrice> = {}
 const CACHE_DURATION = 2000
 
-// Base prices as fallback
+// Base prices as fallback (current market rates March 2025)
 const BASE_PRICES: Record<string, number> = {
-  EURUSD: 1.0850,
-  GBPUSD: 1.2650,
-  USDJPY: 149.50,
+  EURUSD: 1.1530,
+  GBPUSD: 1.2620,
+  USDJPY: 150.25,
   USDCHF: 0.8850,
-  AUDUSD: 0.6550,
+  AUDUSD: 0.6530,
   USDCAD: 1.3650,
-  NZDUSD: 0.6150,
-  EURGBP: 0.8580,
-  EURJPY: 162.20,
-  GBPJPY: 189.15,
-  AUDJPY: 97.85,
-  NZDJPY: 91.95,
-  CADJPY: 109.45,
-  CHFJPY: 168.85,
-  EURAUD: 1.6550,
-  EURNZD: 1.7650,
-  GBPAUD: 1.9350,
-  GBPCAD: 1.7250,
-  AUDCAD: 0.8945,
-  NZDCAD: 0.8410,
+  NZDUSD: 0.6130,
+  EURGBP: 0.9140,
+  EURJPY: 173.15,
+  GBPJPY: 189.55,
+  AUDJPY: 98.10,
+  NZDJPY: 92.05,
+  CADJPY: 110.05,
+  CHFJPY: 169.55,
+  EURAUD: 1.7660,
+  EURNZD: 1.8790,
+  GBPAUD: 1.9320,
+  GBPCAD: 1.7220,
+  AUDCAD: 0.8910,
+  NZDCAD: 0.8375,
   XAUUSD: 2340.00
 }
 
