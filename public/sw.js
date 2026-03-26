@@ -1,4 +1,4 @@
-const CACHE_NAME = 'trademind-ai-v5';
+const CACHE_NAME = 'trademind-ai-v7';
 const STATIC_ASSETS = [
   '/',
   '/manifest.json',
