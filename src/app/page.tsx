@@ -19,7 +19,11 @@ import {
   CandlestickChart,
   LineChart,
   Layers,
-  Globe
+  Globe,
+  Square,
+  Trash2,
+  Save,
+  X
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -368,6 +372,306 @@ const generateDecision = (symbol: string, strategyId: 'ema50' | 'candlestick' | 
     }
   };
 };
+
+// ============ ZONE DRAWER COMPONENT ============
+interface Zone {
+  id: string;
+  symbol: string;
+  interval: string;
+  zone_type: 'support' | 'resistance' | 'demand' | 'supply';
+  price_top: number;
+  price_bottom: number;
+  color: string;
+  created_at: string;
+}
+
+const ZONE_COLORS = {
+  support: '#22c55e',
+  resistance: '#ef4444',
+  demand: '#3b82f6',
+  supply: '#f59e0b',
+};
+
+const ZONE_TYPES = [
+  { id: 'support', name: 'Soporte', color: '#22c55e' },
+  { id: 'resistance', name: 'Resistencia', color: '#ef4444' },
+  { id: 'demand', name: 'Demanda', color: '#3b82f6' },
+  { id: 'supply', name: 'Oferta', color: '#f59e0b' },
+];
+
+function ZoneDrawer({ symbol, interval, currentPrice }: { symbol: string; interval: string; currentPrice: number }) {
+  const [zones, setZones] = useState<Zone[]>([]);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [selectedType, setSelectedType] = useState<'support' | 'resistance' | 'demand' | 'supply'>('support');
+  const [showPanel, setShowPanel] = useState(false);
+  const [startPrice, setStartPrice] = useState<string>('');
+  const [endPrice, setEndPrice] = useState<string>('');
+  const [loading, setLoading] = useState(false);
+
+  // Load zones from Supabase
+  useEffect(() => {
+    const loadZones = async () => {
+      try {
+        const response = await fetch(`/api/zones?symbol=${encodeURIComponent(symbol)}&interval=${interval}`);
+        const data = await response.json();
+        if (data.zones) {
+          setZones(data.zones);
+        }
+      } catch (error) {
+        console.error('Error loading zones:', error);
+      }
+    };
+    loadZones();
+  }, [symbol, interval]);
+
+  // Save zone
+  const saveZone = async () => {
+    const top = parseFloat(startPrice);
+    const bottom = parseFloat(endPrice);
+    
+    if (isNaN(top) || isNaN(bottom)) return;
+
+    setLoading(true);
+    try {
+      const response = await fetch('/api/zones', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          symbol,
+          interval,
+          zoneType: selectedType,
+          priceTop: Math.max(top, bottom),
+          priceBottom: Math.min(top, bottom),
+          color: ZONE_COLORS[selectedType],
+        }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        // Reload zones
+        const zonesResponse = await fetch(`/api/zones?symbol=${encodeURIComponent(symbol)}&interval=${interval}`);
+        const zonesData = await zonesResponse.json();
+        if (zonesData.zones) {
+          setZones(zonesData.zones);
+        }
+        setStartPrice('');
+        setEndPrice('');
+        setIsDrawing(false);
+      }
+    } catch (error) {
+      console.error('Error saving zone:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Delete zone
+  const deleteZone = async (zoneId: string) => {
+    try {
+      await fetch(`/api/zones?id=${zoneId}`, { method: 'DELETE' });
+      setZones(zones.filter(z => z.id !== zoneId));
+    } catch (error) {
+      console.error('Error deleting zone:', error);
+    }
+  };
+
+  // Quick zone creation
+  const createQuickZone = (type: 'support' | 'resistance' | 'demand' | 'supply') => {
+    const offset = currentPrice * 0.002; // 0.2% range
+    setSelectedType(type);
+    setStartPrice((currentPrice + offset).toFixed(5));
+    setEndPrice((currentPrice - offset).toFixed(5));
+    setIsDrawing(true);
+  };
+
+  return (
+    <div className="relative">
+      {/* Toggle Button */}
+      <Button
+        variant="secondary"
+        size="sm"
+        onClick={() => setShowPanel(!showPanel)}
+        className="flex items-center gap-1 bg-background/90 backdrop-blur"
+      >
+        <Layers className="w-4 h-4" />
+        <span className="hidden sm:inline">Zonas</span>
+        {zones.length > 0 && (
+          <Badge variant="secondary" className="ml-1 px-1.5 py-0 text-xs">
+            {zones.length}
+          </Badge>
+        )}
+      </Button>
+
+      {/* Zone Panel */}
+      {showPanel && (
+        <Card className="absolute top-10 left-0 w-80 z-50 shadow-lg">
+          <CardContent className="p-3 space-y-3">
+            {/* Header */}
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-sm">Guardar Zonas</span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowPanel(false)}
+                className="h-6 w-6 p-0"
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+
+            {/* Zone Type Selector */}
+            <div className="grid grid-cols-2 gap-1">
+              {ZONE_TYPES.map((type) => (
+                <Button
+                  key={type.id}
+                  variant={selectedType === type.id ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setSelectedType(type.id as any)}
+                  className="text-xs justify-start"
+                  style={{ 
+                    borderLeft: `3px solid ${type.color}`,
+                    paddingLeft: '8px'
+                  }}
+                >
+                  {type.name}
+                </Button>
+              ))}
+            </div>
+
+            {/* Quick Zone Buttons */}
+            <div className="space-y-1">
+              <span className="text-xs text-muted-foreground">Crear zona rápida:</span>
+              <div className="grid grid-cols-2 gap-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => createQuickZone('support')}
+                  className="text-xs"
+                  style={{ borderLeft: '3px solid #22c55e' }}
+                >
+                  + Soporte
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => createQuickZone('resistance')}
+                  className="text-xs"
+                  style={{ borderLeft: '3px solid #ef4444' }}
+                >
+                  + Resistencia
+                </Button>
+              </div>
+            </div>
+
+            {/* Drawing Mode */}
+            {isDrawing && (
+              <div className="space-y-2 p-2 bg-muted rounded-lg">
+                <div className="text-xs font-medium">Nueva zona {selectedType}:</div>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <span className="text-muted-foreground">Precio superior:</span>
+                    <input
+                      type="number"
+                      step="0.00001"
+                      value={startPrice}
+                      onChange={(e) => setStartPrice(e.target.value)}
+                      className="w-full mt-1 p-1.5 bg-background rounded border text-xs"
+                      placeholder="1.08500"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Precio inferior:</span>
+                    <input
+                      type="number"
+                      step="0.00001"
+                      value={endPrice}
+                      onChange={(e) => setEndPrice(e.target.value)}
+                      className="w-full mt-1 p-1.5 bg-background rounded border text-xs"
+                      placeholder="1.08300"
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-1">
+                  <Button
+                    size="sm"
+                    onClick={saveZone}
+                    disabled={loading || !startPrice || !endPrice}
+                    className="flex-1"
+                  >
+                    <Save className="w-3 h-3 mr-1" />
+                    Guardar
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setIsDrawing(false);
+                      setStartPrice('');
+                      setEndPrice('');
+                    }}
+                  >
+                    <X className="w-3 h-3" />
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Saved Zones List */}
+            {zones.length > 0 && (
+              <div className="space-y-1 max-h-32 overflow-y-auto">
+                <span className="text-xs text-muted-foreground">Zonas guardadas:</span>
+                {zones.map((zone) => (
+                  <div
+                    key={zone.id}
+                    className="flex items-center justify-between p-2 bg-muted/50 rounded text-xs"
+                  >
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="w-3 h-3 rounded"
+                        style={{ backgroundColor: zone.color }}
+                      />
+                      <span className="capitalize">{zone.zone_type}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted-foreground">
+                        {zone.price_bottom.toFixed(5)} - {zone.price_top.toFixed(5)}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => deleteZone(zone.id)}
+                        className="h-5 w-5 p-0 text-destructive hover:text-destructive"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* New Zone Button */}
+            {!isDrawing && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setStartPrice((currentPrice * 1.001).toFixed(5));
+                  setEndPrice((currentPrice * 0.999).toFixed(5));
+                  setIsDrawing(true);
+                }}
+                className="w-full"
+              >
+                <Square className="w-4 h-4 mr-1" />
+                Nueva Zona Manual
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
 
 // ============ DASHBOARD TAB ============
 function DashboardTab() {
@@ -776,6 +1080,15 @@ function OperationTab() {
           allowFullScreen
           allow="clipboard-write"
         />
+        
+        {/* Zone Drawer Button - Top Left */}
+        <div className="absolute top-2 left-2">
+          <ZoneDrawer 
+            symbol={selectedAsset.symbol} 
+            interval="15" 
+            currentPrice={currentPrice || 1}
+          />
+        </div>
         
         {decision && decision.entry && (
           <div className="absolute top-2 right-2 bg-background/90 backdrop-blur p-2 rounded-lg text-xs space-y-1">
