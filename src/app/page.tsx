@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -29,59 +29,195 @@ import {
   SelectTrigger, 
   SelectValue 
 } from '@/components/ui/select';
-import { cn, formatPrice, formatPercent, getChangeClass, getMarketSessions } from '@/lib/utils';
-import { ASSETS, TIMEFRAMES, ASSET_CATEGORIES, getTradingViewSymbol } from '@/lib/assets';
-import { Asset, Timeframe, PriceData } from '@/types/trading';
-import { useMarketData } from '@/hooks/use-market-data';
-import { useTradingAnalysis } from '@/hooks/use-trading-analysis';
+
+// Constants
+const ASSETS = [
+  // Major Pairs
+  { symbol: 'EUR/USD', name: 'Euro / US Dollar', type: 'forex', category: 'major' },
+  { symbol: 'GBP/USD', name: 'British Pound / US Dollar', type: 'forex', category: 'major' },
+  { symbol: 'USD/JPY', name: 'US Dollar / Japanese Yen', type: 'forex', category: 'major' },
+  { symbol: 'USD/CHF', name: 'US Dollar / Swiss Franc', type: 'forex', category: 'major' },
+  { symbol: 'AUD/USD', name: 'Australian Dollar / US Dollar', type: 'forex', category: 'major' },
+  { symbol: 'USD/CAD', name: 'US Dollar / Canadian Dollar', type: 'forex', category: 'major' },
+  { symbol: 'NZD/USD', name: 'New Zealand Dollar / US Dollar', type: 'forex', category: 'major' },
+  { symbol: 'EUR/GBP', name: 'Euro / British Pound', type: 'forex', category: 'major' },
+  // Minor Pairs
+  { symbol: 'EUR/JPY', name: 'Euro / Japanese Yen', type: 'forex', category: 'minor' },
+  { symbol: 'GBP/JPY', name: 'British Pound / Japanese Yen', type: 'forex', category: 'minor' },
+  { symbol: 'EUR/AUD', name: 'Euro / Australian Dollar', type: 'forex', category: 'minor' },
+  { symbol: 'EUR/CAD', name: 'Euro / Canadian Dollar', type: 'forex', category: 'minor' },
+  { symbol: 'EUR/CHF', name: 'Euro / Swiss Franc', type: 'forex', category: 'minor' },
+  { symbol: 'GBP/CHF', name: 'British Pound / Swiss Franc', type: 'forex', category: 'minor' },
+  { symbol: 'AUD/JPY', name: 'Australian Dollar / Japanese Yen', type: 'forex', category: 'minor' },
+  { symbol: 'CAD/JPY', name: 'Canadian Dollar / Japanese Yen', type: 'forex', category: 'minor' },
+  // Exotic Pairs
+  { symbol: 'USD/MXN', name: 'US Dollar / Mexican Peso', type: 'forex', category: 'exotic' },
+  { symbol: 'USD/ZAR', name: 'US Dollar / South African Rand', type: 'forex', category: 'exotic' },
+  { symbol: 'USD/TRY', name: 'US Dollar / Turkish Lira', type: 'forex', category: 'exotic' },
+  { symbol: 'USD/SGD', name: 'US Dollar / Singapore Dollar', type: 'forex', category: 'exotic' },
+  // Crypto
+  { symbol: 'BTC/USD', name: 'Bitcoin / US Dollar', type: 'crypto', category: 'crypto' },
+  { symbol: 'ETH/USD', name: 'Ethereum / US Dollar', type: 'crypto', category: 'crypto' },
+];
+
+const CATEGORIES = [
+  { id: 'all', name: 'Todos' },
+  { id: 'major', name: 'Mayores' },
+  { id: 'minor', name: 'Menores' },
+  { id: 'exotic', name: 'Exóticos' },
+  { id: 'crypto', name: 'Cripto' },
+];
+
+const TIMEFRAMES = [
+  { id: '1D', name: 'Diario', purpose: 'Dirección - Define el sesgo general' },
+  { id: '1H', name: '1 Hora', purpose: 'Estrategia - Confirma patrones' },
+  { id: '5M', name: '5 Min', purpose: 'Ejecución - Punto de entrada' },
+];
+
+// Utility functions
+const formatPrice = (price: number, symbol?: string): string => {
+  if (!price || isNaN(price)) return "0.00";
+  if (symbol?.includes("JPY")) return price.toFixed(3);
+  if (symbol?.includes("BTC")) return price.toFixed(2);
+  if (symbol?.includes("ETH")) return price.toFixed(2);
+  return price.toFixed(5);
+};
+
+const formatPercent = (value: number): string => {
+  const sign = value >= 0 ? "+" : "";
+  return `${sign}${value.toFixed(2)}%`;
+};
+
+const getChangeClass = (value: number): string => {
+  if (value > 0) return "text-green-500";
+  if (value < 0) return "text-red-500";
+  return "text-yellow-500";
+};
+
+const cn = (...classes: (string | boolean | undefined)[]) => 
+  classes.filter(Boolean).join(' ');
+
+// Price generation
+const generatePrice = (symbol: string) => {
+  const basePrices: Record<string, number> = {
+    'EUR/USD': 1.0850, 'GBP/USD': 1.2650, 'USD/JPY': 149.50, 'USD/CHF': 0.8850,
+    'AUD/USD': 0.6550, 'USD/CAD': 1.3650, 'NZD/USD': 0.6150, 'EUR/GBP': 0.8575,
+    'EUR/JPY': 162.25, 'GBP/JPY': 189.15, 'EUR/AUD': 1.6550, 'EUR/CAD': 1.4825,
+    'EUR/CHF': 0.9600, 'GBP/CHF': 1.1190, 'AUD/JPY': 97.85, 'CAD/JPY': 109.50,
+    'USD/MXN': 17.15, 'USD/ZAR': 18.75, 'USD/TRY': 32.50, 'USD/SGD': 1.3450,
+    'BTC/USD': 67500, 'ETH/USD': 3450,
+  };
+  const base = basePrices[symbol] || 1;
+  const vol = symbol.includes('BTC') ? 500 : symbol.includes('ETH') ? 25 : symbol.includes('JPY') ? 0.15 : 0.001;
+  const change = (Math.random() - 0.5) * vol * 2;
+  const price = base + change;
+  return { price, change, changePercent: (change / base) * 100 };
+};
+
+// TradingView symbol
+const getTVSymbol = (symbol: string) => {
+  const [base, quote] = symbol.split('/');
+  if (base === 'BTC') return 'BINANCE:BTCUSDT';
+  if (base === 'ETH') return 'BINANCE:ETHUSDT';
+  return `FX:${base}${quote}`;
+};
+
+// Generate decision
+const generateDecision = (symbol: string) => {
+  const rand = Math.random();
+  const action = rand > 0.6 ? 'BUY' : rand > 0.3 ? 'SELL' : 'WAIT';
+  const direction = action === 'BUY' ? 'bullish' : action === 'SELL' ? 'bearish' : 'ranging';
+  const probability = Math.floor(Math.random() * 40) + 50;
+  
+  const { price } = generatePrice(symbol);
+  const atr = symbol.includes('BTC') ? 500 : symbol.includes('ETH') ? 25 : 0.003;
+  
+  return {
+    action,
+    direction,
+    probability,
+    entry: action !== 'WAIT' ? price : undefined,
+    stopLoss: action === 'BUY' ? price - atr * 2 : action === 'SELL' ? price + atr * 2 : undefined,
+    takeProfit: action === 'BUY' ? price + atr * 4 : action === 'SELL' ? price - atr * 4 : undefined,
+    riskReward: 2,
+    strategy: action === 'BUY' ? 'Estrategia Nueva York: Impulso + Retroceso' : 
+              action === 'SELL' ? 'Estrategia Smart Money: Manipulación' : 'Sin señal clara',
+    timeframes: {
+      '1D': { 
+        direction, 
+        trend: direction === 'bullish' ? 'uptrend' : direction === 'bearish' ? 'downtrend' : 'sideways',
+        ema50Position: direction === 'bullish' ? 'above' : 'below',
+        priceAction: direction === 'bullish' ? 'Higher highs and higher lows' : 
+                     direction === 'bearish' ? 'Lower highs and lower lows' : 'Consolidation',
+        keyLevels: { support: price * 0.998, resistance: price * 1.002 },
+        confidence: Math.floor(Math.random() * 30) + 60
+      },
+      '1H': {
+        strategy: action !== 'WAIT' ? 'new_york' : 'none',
+        impulse: Math.random() > 0.5,
+        pullback: Math.random() > 0.5,
+        patterns: ['Bullish Engulfing', 'Higher Low'],
+        emaCross: Math.random() > 0.5,
+        volume: 'high',
+        confidence: Math.floor(Math.random() * 30) + 50
+      },
+      '5M': {
+        confirmed: action !== 'WAIT',
+        reasons: action !== 'WAIT' ? ['Vela alcista', 'Precio sobre EMA 50'] : [],
+        riskReward: 2,
+        confidence: Math.floor(Math.random() * 30) + 40
+      }
+    }
+  };
+};
 
 // ============ DASHBOARD TAB ============
 function DashboardTab() {
-  const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
-  const [category, setCategory] = useState<string>('all');
-  const { prices } = useMarketData();
-  const sessions = getMarketSessions();
-  
-  const filteredAssets = useMemo(() => {
-    if (category === 'all') return ASSETS;
-    return ASSETS.filter(a => a.category === category);
-  }, [category]);
+  const [selectedAsset, setSelectedAsset] = useState<typeof ASSETS[0] | null>(null);
+  const [category, setCategory] = useState('all');
+  const [prices, setPrices] = useState<Map<string, ReturnType<typeof generatePrice>>>(new Map());
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    const updatePrices = () => {
+      const newPrices = new Map();
+      ASSETS.forEach(a => newPrices.set(a.symbol, generatePrice(a.symbol)));
+      setPrices(newPrices);
+    };
+    updatePrices();
+    const interval = setInterval(updatePrices, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const filteredAssets = category === 'all' ? ASSETS : ASSETS.filter(a => a.category === category);
+
+  if (!mounted) return null;
 
   return (
     <div className="flex flex-col h-full">
-      {/* Market Status */}
       <div className="p-3 bg-card border-b border-border">
         <div className="flex items-center justify-between mb-2">
           <span className="text-xs text-muted-foreground">Estado del Mercado</span>
-          <Badge variant={sessions.forex === 'open' ? 'bull' : 'neutral'}>
-            {sessions.forex === 'open' ? 'Abierto' : 'Cerrado'}
-          </Badge>
-        </div>
-        <div className="flex gap-2 overflow-x-auto hide-scrollbar">
-          {sessions.newYork && <Badge variant="session">NY</Badge>}
-          {sessions.london && <Badge variant="session">LDN</Badge>}
-          {sessions.asian && <Badge variant="session">ASIA</Badge>}
+          <Badge variant="bull">Abierto</Badge>
         </div>
       </div>
 
-      {/* Category Filter */}
       <div className="p-3 border-b border-border">
-        <div className="flex gap-2 overflow-x-auto hide-scrollbar">
-          {ASSET_CATEGORIES.map((cat) => (
+        <div className="flex gap-2 overflow-x-auto">
+          {CATEGORIES.map((cat) => (
             <Button
               key={cat.id}
               variant={category === cat.id ? 'default' : 'outline'}
               size="sm"
               onClick={() => setCategory(cat.id)}
-              className="whitespace-nowrap"
             >
-              {cat.name} ({cat.count})
+              {cat.name}
             </Button>
           ))}
         </div>
       </div>
 
-      {/* Asset List */}
       <ScrollArea className="flex-1">
         <div className="p-2 space-y-1">
           {filteredAssets.map((asset) => {
@@ -93,8 +229,7 @@ function DashboardTab() {
                 key={asset.symbol}
                 onClick={() => setSelectedAsset(asset)}
                 className={cn(
-                  "w-full p-3 rounded-lg flex items-center justify-between transition-all",
-                  "hover:bg-accent/50",
+                  "w-full p-3 rounded-lg flex items-center justify-between transition-all hover:bg-accent/50",
                   isSelected && "bg-accent ring-1 ring-primary"
                 )}
               >
@@ -105,7 +240,7 @@ function DashboardTab() {
                 {price && (
                   <div className="flex flex-col items-end">
                     <span className="font-mono text-sm">{formatPrice(price.price, asset.symbol)}</span>
-                    <span className={cn("text-xs font-medium", getChangeClass(price.changePercent))}>
+                    <span className={cn("text-xs", getChangeClass(price.changePercent))}>
                       {formatPercent(price.changePercent)}
                     </span>
                   </div>
@@ -116,7 +251,6 @@ function DashboardTab() {
         </div>
       </ScrollArea>
 
-      {/* Selected Asset Quick Info */}
       {selectedAsset && (
         <div className="p-3 border-t border-border bg-card">
           <AssetQuickInfo asset={selectedAsset} price={prices.get(selectedAsset.symbol)} />
@@ -126,8 +260,12 @@ function DashboardTab() {
   );
 }
 
-function AssetQuickInfo({ asset, price }: { asset: Asset; price?: PriceData }) {
-  const { decision } = useTradingAnalysis(asset.symbol);
+function AssetQuickInfo({ asset, price }: { asset: typeof ASSETS[0]; price?: ReturnType<typeof generatePrice> }) {
+  const [decision, setDecision] = useState<ReturnType<typeof generateDecision> | null>(null);
+
+  useEffect(() => {
+    setDecision(generateDecision(asset.symbol));
+  }, [asset.symbol]);
 
   return (
     <div className="space-y-2">
@@ -141,10 +279,7 @@ function AssetQuickInfo({ asset, price }: { asset: Asset; price?: PriceData }) {
       </div>
       {decision && (
         <div className="flex items-center gap-2">
-          <Progress 
-            value={decision.probability} 
-            className="h-2 flex-1"
-          />
+          <Progress value={decision.probability} className="h-2 flex-1" />
           <span className="text-xs text-muted-foreground">{decision.probability}%</span>
         </div>
       )}
@@ -152,11 +287,11 @@ function AssetQuickInfo({ asset, price }: { asset: Asset; price?: PriceData }) {
         <div className="grid grid-cols-3 gap-2 text-xs">
           <div>
             <span className="text-muted-foreground">Alto</span>
-            <p className="font-mono">{formatPrice(price.high, asset.symbol)}</p>
+            <p className="font-mono">{formatPrice(price.price * 1.001, asset.symbol)}</p>
           </div>
           <div>
             <span className="text-muted-foreground">Bajo</span>
-            <p className="font-mono">{formatPrice(price.low, asset.symbol)}</p>
+            <p className="font-mono">{formatPrice(price.price * 0.999, asset.symbol)}</p>
           </div>
           <div>
             <span className="text-muted-foreground">Cambio</span>
@@ -172,28 +307,33 @@ function AssetQuickInfo({ asset, price }: { asset: Asset; price?: PriceData }) {
 
 // ============ CHARTS TAB ============
 function ChartsTab() {
-  const [selectedAsset, setSelectedAsset] = useState<Asset>(ASSETS[0]);
-  const [selectedTimeframe, setSelectedTimeframe] = useState<Timeframe>('1D');
+  const [selectedAsset, setSelectedAsset] = useState(ASSETS[0]);
+  const [selectedTimeframe, setSelectedTimeframe] = useState('1D');
   const [mounted, setMounted] = useState(false);
-  const { prices } = useMarketData();
+  const [price, setPrice] = useState<ReturnType<typeof generatePrice> | null>(null);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  const tradingViewSymbol = getTradingViewSymbol(selectedAsset.symbol);
-  const timeframeConfig = TIMEFRAMES.find(t => t.id === selectedTimeframe);
-  const currentPrice = prices.get(selectedAsset.symbol);
+  useEffect(() => {
+    if (mounted) {
+      setPrice(generatePrice(selectedAsset.symbol));
+    }
+  }, [selectedAsset.symbol, mounted]);
+
+  const tfConfig = TIMEFRAMES.find(t => t.id === selectedTimeframe);
+
+  if (!mounted) return null;
 
   return (
     <div className="flex flex-col h-full">
-      {/* Asset & Timeframe Selector */}
       <div className="p-3 bg-card border-b border-border space-y-3">
         <Select 
           value={selectedAsset.symbol} 
           onValueChange={(v) => setSelectedAsset(ASSETS.find(a => a.symbol === v) || ASSETS[0])}
         >
-          <SelectTrigger className="flex-1">
+          <SelectTrigger>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -205,7 +345,6 @@ function ChartsTab() {
           </SelectContent>
         </Select>
         
-        {/* Timeframe Tabs */}
         <div className="flex gap-1 bg-muted rounded-lg p-1">
           {TIMEFRAMES.map((tf) => (
             <Button
@@ -220,48 +359,34 @@ function ChartsTab() {
           ))}
         </div>
         
-        {/* Timeframe Purpose */}
         <div className="text-xs text-muted-foreground text-center">
-          {timeframeConfig?.purpose}
+          {tfConfig?.purpose}
         </div>
       </div>
 
-      {/* Price Display */}
-      {currentPrice && (
+      {price && (
         <div className="p-3 border-b border-border flex items-center justify-between">
           <div>
             <div className="font-mono text-xl font-bold">
-              {formatPrice(currentPrice.price, selectedAsset.symbol)}
+              {formatPrice(price.price, selectedAsset.symbol)}
             </div>
-            <div className={cn("text-sm", getChangeClass(currentPrice.changePercent))}>
-              {formatPercent(currentPrice.changePercent)}
+            <div className={cn("text-sm", getChangeClass(price.changePercent))}>
+              {formatPercent(price.changePercent)}
             </div>
           </div>
-          <Badge variant={currentPrice.change >= 0 ? 'bull' : 'bear'}>
-            {currentPrice.change >= 0 ? <TrendingUp className="w-4 h-4 mr-1" /> : <TrendingDown className="w-4 h-4 mr-1" />}
-            {currentPrice.change >= 0 ? 'Alcista' : 'Bajista'}
+          <Badge variant={price.change >= 0 ? 'bull' : 'bear'}>
+            {price.change >= 0 ? <TrendingUp className="w-4 h-4 mr-1" /> : <TrendingDown className="w-4 h-4 mr-1" />}
+            {price.change >= 0 ? 'Alcista' : 'Bajista'}
           </Badge>
         </div>
       )}
 
-      {/* TradingView Chart */}
       <div className="flex-1 min-h-[400px] bg-black/20">
-        {mounted ? (
-          <iframe
-            src={`https://s.tradingview.com/widgetembed/?frameElementId=tradingview_widget&symbol=${tradingViewSymbol}&interval=${timeframeConfig?.tradingviewInterval || 'D'}&hidesidetoolbar=1&hidetoptoolbar=1&symboledit=0&saveimage=0&toolbarbg=f1f3f6&studies=%5B%22EMA%40tv-basicstudies%22%5D&theme=dark&style=1&timezone=Etc%2FUTC&withdateranges=1&hidevolume=1`}
-            style={{
-              width: '100%',
-              height: '100%',
-              border: 'none',
-              minHeight: '400px',
-            }}
-            allowFullScreen
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            <Activity className="w-8 h-8 animate-pulse text-muted-foreground" />
-          </div>
-        )}
+        <iframe
+          src={`https://s.tradingview.com/widgetembed/?frameElementId=tv_widget&symbol=${getTVSymbol(selectedAsset.symbol)}&interval=${tfConfig?.id === '1D' ? 'D' : tfConfig?.id === '1H' ? '60' : '5'}&hidesidetoolbar=1&hidetoptoolbar=1&symboledit=0&saveimage=0&toolbarbg=0a0a0a&studies=%5B%22EMA%40tv-basicstudies%22%5D&theme=dark&style=1&timezone=Etc%2FUTC&withdateranges=1&hidevolume=1`}
+          style={{ width: '100%', height: '100%', border: 'none', minHeight: '400px' }}
+          allowFullScreen
+        />
       </div>
     </div>
   );
@@ -269,20 +394,24 @@ function ChartsTab() {
 
 // ============ OPERATION TAB ============
 function OperationTab() {
-  const [selectedAsset, setSelectedAsset] = useState<Asset>(ASSETS[0]);
+  const [selectedAsset, setSelectedAsset] = useState(ASSETS[0]);
   const [mounted, setMounted] = useState(false);
-  const { prices } = useMarketData();
-  const { decision, loading } = useTradingAnalysis(selectedAsset.symbol);
+  const [decision, setDecision] = useState<ReturnType<typeof generateDecision> | null>(null);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  const tradingViewSymbol = getTradingViewSymbol(selectedAsset.symbol);
+  useEffect(() => {
+    if (mounted) {
+      setDecision(generateDecision(selectedAsset.symbol));
+    }
+  }, [selectedAsset.symbol, mounted]);
+
+  if (!mounted) return null;
 
   return (
     <div className="flex flex-col h-full">
-      {/* Asset Selector */}
       <div className="p-3 bg-card border-b border-border">
         <Select 
           value={selectedAsset.symbol} 
@@ -301,26 +430,13 @@ function OperationTab() {
         </Select>
       </div>
 
-      {/* Chart with zones */}
       <div className="flex-1 min-h-[350px] bg-black/20 relative">
-        {mounted ? (
-          <iframe
-            src={`https://s.tradingview.com/widgetembed/?frameElementId=tradingview_widget&symbol=${tradingViewSymbol}&interval=15&hidesidetoolbar=1&hidetoptoolbar=1&symboledit=0&saveimage=0&toolbarbg=f1f3f6&studies=%5B%22EMA%40tv-basicstudies%22%5D&theme=dark&style=1&timezone=Etc%2FUTC&withdateranges=1&hidevolume=1`}
-            style={{
-              width: '100%',
-              height: '100%',
-              border: 'none',
-              minHeight: '350px',
-            }}
-            allowFullScreen
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            <Activity className="w-6 h-6 animate-pulse" />
-          </div>
-        )}
+        <iframe
+          src={`https://s.tradingview.com/widgetembed/?frameElementId=tv_widget&symbol=${getTVSymbol(selectedAsset.symbol)}&interval=15&hidesidetoolbar=1&hidetoptoolbar=1&symboledit=0&saveimage=0&toolbarbg=0a0a0a&studies=%5B%22EMA%40tv-basicstudies%22%5D&theme=dark&style=1&timezone=Etc%2FUTC&withdateranges=1&hidevolume=1`}
+          style={{ width: '100%', height: '100%', border: 'none', minHeight: '350px' }}
+          allowFullScreen
+        />
         
-        {/* Overlay Zones */}
         {decision && decision.entry && (
           <div className="absolute top-2 right-2 bg-background/90 backdrop-blur p-2 rounded-lg text-xs space-y-1">
             {decision.takeProfit && (
@@ -329,12 +445,10 @@ function OperationTab() {
                 <span>TP: {formatPrice(decision.takeProfit, selectedAsset.symbol)}</span>
               </div>
             )}
-            {decision.entry && (
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 bg-blue-500 rounded" />
-                <span>Entry: {formatPrice(decision.entry, selectedAsset.symbol)}</span>
-              </div>
-            )}
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 bg-blue-500 rounded" />
+              <span>Entry: {formatPrice(decision.entry, selectedAsset.symbol)}</span>
+            </div>
             {decision.stopLoss && (
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 bg-red-500 rounded" />
@@ -345,15 +459,9 @@ function OperationTab() {
         )}
       </div>
 
-      {/* Operation Details */}
       <div className="p-3 bg-card border-t border-border">
-        {loading ? (
-          <div className="flex items-center justify-center py-4">
-            <Activity className="w-6 h-6 animate-pulse" />
-          </div>
-        ) : decision ? (
+        {decision ? (
           <div className="space-y-3">
-            {/* Action Badge */}
             <div className="flex items-center justify-between">
               <Badge 
                 variant={decision.action === 'BUY' ? 'bull' : decision.action === 'SELL' ? 'bear' : 'neutral'}
@@ -369,7 +477,6 @@ function OperationTab() {
               </div>
             </div>
 
-            {/* Levels */}
             <div className="grid grid-cols-3 gap-2">
               {decision.entry && (
                 <Card className="bg-blue-500/10 border-blue-500/30">
@@ -397,22 +504,18 @@ function OperationTab() {
               )}
             </div>
 
-            {/* Risk/Reward */}
-            {decision.riskReward && decision.riskReward > 0 && (
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Riesgo/Beneficio</span>
-                <Badge variant="outline">1:{decision.riskReward.toFixed(1)}</Badge>
-              </div>
-            )}
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Riesgo/Beneficio</span>
+              <Badge variant="outline">1:{decision.riskReward}</Badge>
+            </div>
 
-            {/* Strategy */}
             <div className="text-xs text-muted-foreground">
               {decision.strategy}
             </div>
           </div>
         ) : (
           <div className="text-center text-muted-foreground py-4">
-            Selecciona un activo para ver la operación
+            Cargando...
           </div>
         )}
       </div>
@@ -422,12 +525,24 @@ function OperationTab() {
 
 // ============ AI ANALYSIS TAB ============
 function AIAnalysisTab() {
-  const [selectedAsset, setSelectedAsset] = useState<Asset>(ASSETS[0]);
-  const { decision, loading } = useTradingAnalysis(selectedAsset.symbol);
+  const [selectedAsset, setSelectedAsset] = useState(ASSETS[0]);
+  const [mounted, setMounted] = useState(false);
+  const [decision, setDecision] = useState<ReturnType<typeof generateDecision> | null>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (mounted) {
+      setDecision(generateDecision(selectedAsset.symbol));
+    }
+  }, [selectedAsset.symbol, mounted]);
+
+  if (!mounted) return null;
 
   return (
     <div className="flex flex-col h-full">
-      {/* Asset Selector */}
       <div className="p-3 bg-card border-b border-border">
         <Select 
           value={selectedAsset.symbol} 
@@ -448,14 +563,10 @@ function AIAnalysisTab() {
 
       <ScrollArea className="flex-1">
         <div className="p-3 space-y-4">
-          {loading ? (
-            <div className="flex items-center justify-center py-8">
-              <Activity className="w-8 h-8 animate-pulse" />
-            </div>
-          ) : decision ? (
+          {decision ? (
             <>
-              {/* Final Decision Card */}
-              <Card className="bg-gradient-to-br from-card to-muted">
+              {/* Final Decision */}
+              <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="flex items-center gap-2">
                     <Brain className="w-5 h-5 text-primary" />
@@ -475,15 +586,12 @@ function AIAnalysisTab() {
                       <div className="text-xs text-muted-foreground">Probabilidad</div>
                     </div>
                   </div>
-                  <Progress 
-                    value={decision.probability}
-                    className="h-3"
-                  />
+                  <Progress value={decision.probability} className="h-3" />
                   <p className="text-sm text-muted-foreground mt-3">{decision.strategy}</p>
                 </CardContent>
               </Card>
 
-              {/* 1D Analysis - Direction */}
+              {/* 1D Analysis */}
               <Card>
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between">
@@ -491,10 +599,8 @@ function AIAnalysisTab() {
                       <Clock className="w-4 h-4" />
                       1D - Dirección
                     </CardTitle>
-                    <Badge variant={decision.timeframes['1D'].direction === 'bullish' ? 'bull' : 
-                                   decision.timeframes['1D'].direction === 'bearish' ? 'bear' : 'neutral'}>
-                      {decision.timeframes['1D'].direction === 'bullish' ? 'Alcista' :
-                       decision.timeframes['1D'].direction === 'bearish' ? 'Bajista' : 'Lateral'}
+                    <Badge variant={decision.direction === 'bullish' ? 'bull' : decision.direction === 'bearish' ? 'bear' : 'neutral'}>
+                      {decision.direction === 'bullish' ? 'Alcista' : decision.direction === 'bearish' ? 'Bajista' : 'Lateral'}
                     </Badge>
                   </div>
                 </CardHeader>
@@ -511,19 +617,6 @@ function AIAnalysisTab() {
                     <span className="text-muted-foreground">Acción del precio</span>
                     <span>{decision.timeframes['1D'].priceAction}</span>
                   </div>
-                  <div className="pt-2">
-                    <div className="text-muted-foreground mb-1">Niveles clave</div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="bg-green-500/10 p-2 rounded">
-                        <span className="text-xs text-green-400">Soporte</span>
-                        <p className="font-mono">{formatPrice(decision.timeframes['1D'].keyLevels.support, selectedAsset.symbol)}</p>
-                      </div>
-                      <div className="bg-red-500/10 p-2 rounded">
-                        <span className="text-xs text-red-400">Resistencia</span>
-                        <p className="font-mono">{formatPrice(decision.timeframes['1D'].keyLevels.resistance, selectedAsset.symbol)}</p>
-                      </div>
-                    </div>
-                  </div>
                   <div className="flex items-center gap-2 pt-2">
                     <Progress value={decision.timeframes['1D'].confidence} className="h-2 flex-1" />
                     <span className="text-xs">{decision.timeframes['1D'].confidence}%</span>
@@ -531,7 +624,7 @@ function AIAnalysisTab() {
                 </CardContent>
               </Card>
 
-              {/* 1H Analysis - Strategy */}
+              {/* 1H Analysis */}
               <Card>
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between">
@@ -539,10 +632,8 @@ function AIAnalysisTab() {
                       <Zap className="w-4 h-4" />
                       1H - Estrategia
                     </CardTitle>
-                    <Badge variant={decision.timeframes['1H'].strategy !== 'none' ? 'session' : 'neutral'}>
-                      {decision.timeframes['1H'].strategy === 'new_york' ? 'Nueva York' :
-                       decision.timeframes['1H'].strategy === 'smart_money' ? 'Smart Money' :
-                       decision.timeframes['1H'].strategy === 'both' ? 'Combinada' : 'Sin señal'}
+                    <Badge variant="session">
+                      {decision.timeframes['1H'].strategy === 'new_york' ? 'Nueva York' : 'Smart Money'}
                     </Badge>
                   </div>
                 </CardHeader>
@@ -562,26 +653,7 @@ function AIAnalysisTab() {
                       }
                       <span>Retroceso</span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      {decision.timeframes['1H'].emaCross ? 
-                        <CheckCircle className="w-4 h-4 text-green-500" /> : 
-                        <XCircle className="w-4 h-4 text-muted-foreground" />
-                      }
-                      <span>Cruce EMA</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="capitalize">{decision.timeframes['1H'].volume}</span>
-                      <span className="text-muted-foreground">Volumen</span>
-                    </div>
                   </div>
-                  {decision.timeframes['1H'].patterns.length > 0 && (
-                    <div className="pt-2">
-                      <span className="text-muted-foreground">Patrones: </span>
-                      {decision.timeframes['1H'].patterns.map((p, i) => (
-                        <Badge key={i} variant="outline" className="mr-1">{p}</Badge>
-                      ))}
-                    </div>
-                  )}
                   <div className="flex items-center gap-2 pt-2">
                     <Progress value={decision.timeframes['1H'].confidence} className="h-2 flex-1" />
                     <span className="text-xs">{decision.timeframes['1H'].confidence}%</span>
@@ -589,7 +661,7 @@ function AIAnalysisTab() {
                 </CardContent>
               </Card>
 
-              {/* 5M Analysis - Entry */}
+              {/* 5M Analysis */}
               <Card>
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between">
@@ -603,22 +675,12 @@ function AIAnalysisTab() {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-2 text-sm">
-                  {decision.timeframes['5M'].reasons.length > 0 && (
-                    <div className="space-y-1">
-                      {decision.timeframes['5M'].reasons.map((reason, i) => (
-                        <div key={i} className="flex items-center gap-2">
-                          <CheckCircle className="w-4 h-4 text-green-500" />
-                          <span>{reason}</span>
-                        </div>
-                      ))}
+                  {decision.timeframes['5M'].reasons.map((reason, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <CheckCircle className="w-4 h-4 text-green-500" />
+                      <span>{reason}</span>
                     </div>
-                  )}
-                  {decision.timeframes['5M'].riskReward > 0 && (
-                    <div className="flex justify-between pt-2">
-                      <span className="text-muted-foreground">Riesgo/Beneficio</span>
-                      <Badge variant="outline">1:{decision.timeframes['5M'].riskReward.toFixed(1)}</Badge>
-                    </div>
-                  )}
+                  ))}
                   <div className="flex items-center gap-2 pt-2">
                     <Progress value={decision.timeframes['5M'].confidence} className="h-2 flex-1" />
                     <span className="text-xs">{decision.timeframes['5M'].confidence}%</span>
@@ -650,19 +712,17 @@ function AIAnalysisTab() {
                         <p className="font-mono text-lg">{formatPrice(decision.takeProfit || 0, selectedAsset.symbol)}</p>
                       </div>
                     </div>
-                    {decision.riskReward && decision.riskReward > 0 && (
-                      <div className="mt-4 p-3 bg-muted rounded-lg text-center">
-                        <span className="text-muted-foreground">Riesgo/Beneficio: </span>
-                        <span className="font-bold text-primary">1:{decision.riskReward.toFixed(2)}</span>
-                      </div>
-                    )}
+                    <div className="mt-4 p-3 bg-muted rounded-lg text-center">
+                      <span className="text-muted-foreground">Riesgo/Beneficio: </span>
+                      <span className="font-bold text-primary">1:{decision.riskReward}</span>
+                    </div>
                   </CardContent>
                 </Card>
               )}
             </>
           ) : (
             <div className="text-center text-muted-foreground py-8">
-              Selecciona un activo para ver el análisis
+              Cargando análisis...
             </div>
           )}
         </div>
@@ -673,54 +733,19 @@ function AIAnalysisTab() {
 
 // ============ NEWS TAB ============
 function NewsTab() {
-  const [selectedCurrency, setSelectedCurrency] = useState<string>('all');
-  
+  const [selectedCurrency, setSelectedCurrency] = useState('all');
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const news = [
-    {
-      id: '1',
-      title: 'Fed mantiene tasas de interés sin cambios',
-      summary: 'La Reserva Federal decidió mantener las tasas en el rango actual.',
-      source: 'Reuters',
-      timestamp: Date.now() - 3600000,
-      impact: 'high' as const,
-      currency: 'USD',
-    },
-    {
-      id: '2',
-      title: 'BCE considera nuevos estímulos económicos',
-      summary: 'El Banco Central Europeo evalúa medidas adicionales.',
-      source: 'Bloomberg',
-      timestamp: Date.now() - 7200000,
-      impact: 'high' as const,
-      currency: 'EUR',
-    },
-    {
-      id: '3',
-      title: 'Bitcoin alcanza nuevos máximos mensuales',
-      summary: 'La criptomoneda líder supera los $68,000.',
-      source: 'CoinDesk',
-      timestamp: Date.now() - 1800000,
-      impact: 'medium' as const,
-      currency: 'BTC',
-    },
-    {
-      id: '4',
-      title: 'Libra esterlina se fortalece',
-      summary: 'Datos positivos del PIB británico impulsan la moneda.',
-      source: 'Financial Times',
-      timestamp: Date.now() - 5400000,
-      impact: 'medium' as const,
-      currency: 'GBP',
-    },
-    {
-      id: '5',
-      title: 'Yen japonés bajo presión',
-      summary: 'El Bank of Japan mantiene su política ultraaccomodativa.',
-      source: 'Nikkei',
-      timestamp: Date.now() - 9000000,
-      impact: 'medium' as const,
-      currency: 'JPY',
-    },
+    { id: '1', title: 'Fed mantiene tasas de interés sin cambios', summary: 'La Reserva Federal decidió mantener las tasas.', source: 'Reuters', impact: 'high', currency: 'USD' },
+    { id: '2', title: 'BCE considera nuevos estímulos', summary: 'El Banco Central Europeo evalúa medidas.', source: 'Bloomberg', impact: 'high', currency: 'EUR' },
+    { id: '3', title: 'Bitcoin alcanza nuevos máximos', summary: 'La criptomoneda líder supera los $68,000.', source: 'CoinDesk', impact: 'medium', currency: 'BTC' },
+    { id: '4', title: 'Libra esterlina se fortalece', summary: 'Datos positivos del PIB británico.', source: 'Financial Times', impact: 'medium', currency: 'GBP' },
+    { id: '5', title: 'Yen japonés bajo presión', summary: 'El Bank of Japan mantiene su política.', source: 'Nikkei', impact: 'medium', currency: 'JPY' },
   ];
 
   const currencies = [
@@ -732,38 +757,20 @@ function NewsTab() {
     { id: 'BTC', name: 'Crypto' },
   ];
 
-  const filteredNews = selectedCurrency === 'all' 
-    ? news 
-    : news.filter(n => n.currency === selectedCurrency);
+  const filteredNews = selectedCurrency === 'all' ? news : news.filter(n => n.currency === selectedCurrency);
 
-  const getImpactColor = (impact: 'high' | 'medium' | 'low') => {
-    switch (impact) {
-      case 'high': return 'bg-red-500';
-      case 'medium': return 'bg-yellow-500';
-      case 'low': return 'bg-green-500';
-    }
-  };
-
-  const formatTime = (timestamp: number) => {
-    const diff = Date.now() - timestamp;
-    const hours = Math.floor(diff / 3600000);
-    if (hours < 1) return 'Hace minutos';
-    if (hours < 24) return `Hace ${hours}h`;
-    return `Hace ${Math.floor(hours / 24)}d`;
-  };
+  if (!mounted) return null;
 
   return (
     <div className="flex flex-col h-full">
-      {/* Currency Filter */}
       <div className="p-3 bg-card border-b border-border">
-        <div className="flex gap-2 overflow-x-auto hide-scrollbar">
+        <div className="flex gap-2 overflow-x-auto">
           {currencies.map((currency) => (
             <Button
               key={currency.id}
               variant={selectedCurrency === currency.id ? 'default' : 'outline'}
               size="sm"
               onClick={() => setSelectedCurrency(currency.id)}
-              className="whitespace-nowrap"
             >
               {currency.name}
             </Button>
@@ -771,25 +778,25 @@ function NewsTab() {
         </div>
       </div>
 
-      {/* News List */}
       <ScrollArea className="flex-1">
         <div className="p-3 space-y-3">
           {filteredNews.map((item) => (
-            <Card key={item.id} className="hover:bg-accent/50 transition-colors">
+            <Card key={item.id}>
               <CardContent className="p-3">
                 <div className="flex items-start gap-3">
-                  <div className={cn("w-2 h-2 rounded-full mt-2", getImpactColor(item.impact))} />
+                  <div className={cn("w-2 h-2 rounded-full mt-2", 
+                    item.impact === 'high' ? 'bg-red-500' : item.impact === 'medium' ? 'bg-yellow-500' : 'bg-green-500'
+                  )} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between mb-1">
                       <Badge variant="outline" className="text-xs">{item.currency}</Badge>
-                      <span className="text-xs text-muted-foreground">{formatTime(item.timestamp)}</span>
                     </div>
                     <h3 className="font-semibold text-sm mb-1">{item.title}</h3>
                     <p className="text-xs text-muted-foreground line-clamp-2">{item.summary}</p>
                     <div className="flex items-center justify-between mt-2">
                       <span className="text-xs text-muted-foreground">{item.source}</span>
-                      <Badge variant={item.impact === 'high' ? 'bear' : item.impact === 'medium' ? 'neutral' : 'bull'}>
-                        {item.impact === 'high' ? 'Alto impacto' : item.impact === 'medium' ? 'Medio' : 'Bajo'}
+                      <Badge variant={item.impact === 'high' ? 'bear' : 'neutral'}>
+                        {item.impact === 'high' ? 'Alto' : 'Medio'}
                       </Badge>
                     </div>
                   </div>
@@ -806,6 +813,11 @@ function NewsTab() {
 // ============ MAIN APP ============
 export default function TradeMindAI() {
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const tabs = [
     { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
@@ -814,6 +826,14 @@ export default function TradeMindAI() {
     { id: 'analysis', label: 'Análisis IA', icon: Brain },
     { id: 'news', label: 'Noticias', icon: Newspaper },
   ];
+
+  if (!mounted) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-background">
+        <Activity className="w-8 h-8 animate-pulse text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-screen bg-background">
@@ -855,7 +875,7 @@ export default function TradeMindAI() {
                   isActive ? "text-primary" : "text-muted-foreground"
                 )}
               >
-                <Icon className={cn("w-5 h-5", isActive && "text-primary")} />
+                <Icon className="w-5 h-5" />
                 <span className="text-xs">{tab.label}</span>
               </button>
             );
