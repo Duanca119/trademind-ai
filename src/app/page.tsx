@@ -477,19 +477,19 @@ function DashboardTab() {
 
       {selectedAsset && (
         <div className="p-3 border-t border-border bg-card">
-          <AssetQuickInfo asset={selectedAsset} price={prices.get(selectedAsset.symbol)} allPrices={prices} />
+          <AssetQuickInfo asset={selectedAsset} price={prices.get(selectedAsset.symbol)} />
         </div>
       )}
     </div>
   );
 }
 
-function AssetQuickInfo({ asset, price }: { asset: typeof ASSETS[0]; price?: ReturnType<typeof generatePrice> }) {
+function AssetQuickInfo({ asset, price }: { asset: typeof ASSETS[0]; price?: PriceData }) {
   const [decision, setDecision] = useState<ReturnType<typeof generateDecision> | null>(null);
 
   useEffect(() => {
-    setDecision(generateDecision(asset.symbol, 'ema50'));
-  }, [asset.symbol]);
+    setDecision(generateDecision(asset.symbol, 'ema50', price?.price));
+  }, [asset.symbol, price?.price]);
 
   return (
     <div className="space-y-2">
@@ -511,11 +511,11 @@ function AssetQuickInfo({ asset, price }: { asset: typeof ASSETS[0]; price?: Ret
         <div className="grid grid-cols-3 gap-2 text-xs">
           <div>
             <span className="text-muted-foreground">Alto</span>
-            <p className="font-mono">{formatPrice(price.price * 1.001, asset.symbol)}</p>
+            <p className="font-mono">{formatPrice(price.high || price.price * 1.001, asset.symbol)}</p>
           </div>
           <div>
             <span className="text-muted-foreground">Bajo</span>
-            <p className="font-mono">{formatPrice(price.price * 0.999, asset.symbol)}</p>
+            <p className="font-mono">{formatPrice(price.low || price.price * 0.999, asset.symbol)}</p>
           </div>
           <div>
             <span className="text-muted-foreground">Cambio</span>
