@@ -23,7 +23,8 @@ import {
   Square,
   Trash2,
   Save,
-  X
+  X,
+  RefreshCw
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -1667,10 +1668,61 @@ function NewsTab() {
 export default function TradeMindAI() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [mounted, setMounted] = useState(false);
+  const [updateAvailable, setUpdateAvailable] = useState(false);
+  const [updating, setUpdating] = useState(false);
 
   useEffect(() => {
     setMounted(true);
+
+    // Check for Service Worker updates
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.ready.then((registration) => {
+        // Check for updates
+        registration.update();
+        
+        // Listen for new versions
+        registration.addEventListener('updatefound', () => {
+          const newWorker = registration.installing;
+          if (newWorker) {
+            newWorker.addEventListener('statechange', () => {
+              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                setUpdateAvailable(true);
+              }
+            });
+          }
+        });
+      });
+
+      // Check for updates every 30 seconds
+      setInterval(() => {
+        navigator.serviceWorker.getRegistration().then((reg) => {
+          if (reg) reg.update();
+        });
+      }, 30000);
+    }
   }, []);
+
+  // Force update
+  const handleUpdate = async () => {
+    setUpdating(true);
+    
+    // Clear all caches
+    if ('caches' in window) {
+      const cacheNames = await caches.keys();
+      await Promise.all(cacheNames.map(name => caches.delete(name)));
+    }
+    
+    // Unregister old service worker
+    if ('serviceWorker' in navigator) {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      for (const reg of registrations) {
+        await reg.unregister();
+      }
+    }
+    
+    // Reload page
+    window.location.reload();
+  };
 
   const tabs = [
     { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
@@ -1698,10 +1750,44 @@ export default function TradeMindAI() {
           </div>
           <h1 className="font-bold text-lg">TradeMind AI</h1>
         </div>
-        <Badge variant="outline" className="text-xs">
-          <Activity className="w-3 h-3 mr-1" />
-          Live
-        </Badge>
+        <div className="flex items-center gap-2">
+          {/* Update Button */}
+          {updateAvailable ? (
+            <Button 
+              size="sm" 
+              variant="default" 
+              onClick={handleUpdate}
+              disabled={updating}
+              className="text-xs"
+            >
+              {updating ? (
+                <>
+                  <RefreshCw className="w-3 h-3 mr-1 animate-spin" />
+                  Actualizando...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="w-3 h-3 mr-1" />
+                  Actualizar
+                </>
+              )}
+            </Button>
+          ) : (
+            <Button 
+              size="sm" 
+              variant="ghost" 
+              onClick={handleUpdate}
+              className="text-xs"
+              title="Forzar actualización"
+            >
+              <RefreshCw className="w-3 h-3" />
+            </Button>
+          )}
+          <Badge variant="outline" className="text-xs">
+            <Activity className="w-3 h-3 mr-1" />
+            Live
+          </Badge>
+        </div>
       </header>
 
       {/* Main Content */}
