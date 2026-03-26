@@ -565,10 +565,35 @@ function ChartsTab() {
   }, [selectedAsset.symbol, mounted]);
 
   const chartConfigs = [
-    { id: '1D', name: 'Diario', purpose: 'Dirección', interval: 'D', height: 280 },
-    { id: '1H', name: '1 Hora', purpose: 'Estrategia', interval: '60', height: 250 },
-    { id: '5M', name: '5 Min', purpose: 'Ejecución', interval: '5', height: 220 },
+    { id: '1D', name: 'Diario', purpose: 'Dirección', interval: 'D', height: 350 },
+    { id: '1H', name: '1 Hora', purpose: 'Estrategia', interval: '60', height: 320 },
+    { id: '5M', name: '5 Min', purpose: 'Ejecución', interval: '5', height: 300 },
   ];
+
+  // TradingView widget URL with full toolbar enabled
+  const getTVWidgetUrl = (configId: string, symbol: string, interval: string) => {
+    const params = new URLSearchParams({
+      frameElementId: `tv_${configId}`,
+      symbol: getTVSymbol(symbol),
+      interval: interval,
+      hidesidetoolbar: '0', // Show side toolbar (drawing tools!)
+      hidetoptoolbar: '0',  // Show top toolbar
+      symboledit: '1',      // Allow symbol editing
+      saveimage: '1',       // Allow saving image
+      toolbarbg: '0a0a0a',
+      studies: '["EMA@tv-basicstudies"]',
+      theme: 'dark',
+      style: '1',
+      timezone: 'Etc/UTC',
+      withdateranges: '1',
+      hidevolume: '0',
+      allow_symbol_change: '1',
+      details: '1',
+      hotlist: '0',
+      calendar: '0',
+    });
+    return `https://s.tradingview.com/widgetembed/?${params.toString()}`;
+  };
 
   if (!mounted) return null;
 
@@ -610,7 +635,7 @@ function ChartsTab() {
       </div>
 
       <ScrollArea className="flex-1">
-        <div className="space-y-2 p-2">
+        <div className="space-y-2 p-2 pb-8">
           {chartConfigs.map((config) => (
             <div key={config.id} className="bg-card rounded-lg border border-border overflow-hidden">
               <div className="flex items-center justify-between px-3 py-2 bg-muted/50 border-b border-border">
@@ -621,11 +646,12 @@ function ChartsTab() {
                 <span className="text-xs text-muted-foreground">{config.purpose}</span>
               </div>
               
-              <div style={{ height: config.height }} className="bg-black/20">
+              <div style={{ height: config.height }} className="bg-black/20 relative">
                 <iframe
-                  src={`https://s.tradingview.com/widgetembed/?frameElementId=tv_${config.id}&symbol=${getTVSymbol(selectedAsset.symbol)}&interval=${config.interval}&hidesidetoolbar=1&hidetoptoolbar=1&symboledit=0&saveimage=0&toolbarbg=0a0a0a&studies=%5B%22EMA%40tv-basicstudies%22%5D&theme=dark&style=1&timezone=Etc%2FUTC&withdateranges=1&hidevolume=1`}
+                  src={getTVWidgetUrl(config.id, selectedAsset.symbol, config.interval)}
                   style={{ width: '100%', height: '100%', border: 'none' }}
                   allowFullScreen
+                  allow="clipboard-write"
                 />
               </div>
             </div>
@@ -742,12 +768,13 @@ function OperationTab() {
         </div>
       </div>
 
-      {/* Chart */}
-      <div className="flex-1 min-h-[280px] bg-black/20 relative">
+      {/* Chart - With tools enabled */}
+      <div className="flex-1 min-h-[350px] bg-black/20 relative">
         <iframe
-          src={`https://s.tradingview.com/widgetembed/?frameElementId=tv_widget&symbol=${getTVSymbol(selectedAsset.symbol)}&interval=15&hidesidetoolbar=1&hidetoptoolbar=1&symboledit=0&saveimage=0&toolbarbg=0a0a0a&studies=%5B%22EMA%40tv-basicstudies%22%5D&theme=dark&style=1&timezone=Etc%2FUTC&withdateranges=1&hidevolume=1`}
-          style={{ width: '100%', height: '100%', border: 'none', minHeight: '280px' }}
+          src={`https://s.tradingview.com/widgetembed/?frameElementId=tv_operation&symbol=${getTVSymbol(selectedAsset.symbol)}&interval=15&hidesidetoolbar=0&hidetoptoolbar=0&symboledit=1&saveimage=1&toolbarbg=0a0a0a&studies=%5B%22EMA%40tv-basicstudies%22%5D&theme=dark&style=1&timezone=Etc%2FUTC&withdateranges=1&hidevolume=0&allow_symbol_change=1&details=1`}
+          style={{ width: '100%', height: '100%', border: 'none', minHeight: '350px' }}
           allowFullScreen
+          allow="clipboard-write"
         />
         
         {decision && decision.entry && (
