@@ -16,8 +16,10 @@ import {
   ArrowDownRight,
   Zap,
   DollarSign,
-  Building2,
-  Sparkles
+  CandlestickChart,
+  LineChart,
+  Layers,
+  Globe
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -70,20 +72,74 @@ const CATEGORIES = [
   { id: 'crypto', name: 'Cripto' },
 ];
 
+// STRATEGIES - Analyze the market using indicators
 const STRATEGIES = [
   { 
-    id: 'new_york', 
-    name: 'Nueva York', 
-    icon: Building2,
-    description: 'Impulso + Retroceso + Continuación',
-    color: 'bg-blue-500'
+    id: 'ema50', 
+    name: 'EMA 50', 
+    icon: LineChart,
+    description: 'Media Móvil Exponencial 50 períodos',
+    details: 'Identifica la tendencia principal y zonas de valor',
+    conditions: [
+      'Precio sobre EMA 50 = Tendencia alcista',
+      'Precio bajo EMA 50 = Tendencia bajista',
+      'Retroceso hacia EMA 50 = Zona de valor para entradas',
+      'Cruce de precio con EMA 50 = Cambio de tendencia'
+    ]
+  },
+  { 
+    id: 'candlestick', 
+    name: 'Velas Japonesas', 
+    icon: CandlestickChart,
+    description: 'Análisis de patrones de velas',
+    details: 'Identifica patrones de reversión y continuación',
+    conditions: [
+      'Patrones de reversión: Martillo, Estrella, Engulfing',
+      'Patrones de continuación: Doji, Ventanas',
+      'Confirmación con volumen',
+      'Ubicación en zonas clave'
+    ]
   },
   { 
     id: 'smart_money', 
     name: 'Smart Money', 
-    icon: Sparkles,
-    description: 'Manipulación + Liquidez + Order Blocks',
-    color: 'bg-purple-500'
+    icon: Layers,
+    description: 'Order Blocks, Liquidez, Manipulación',
+    details: 'Sigue el flujo institucional del mercado',
+    conditions: [
+      'Identificación de Order Blocks',
+      'Barrido de liquidez (Stop Hunt)',
+      'Zonas de manipulación',
+      'Inducement y mitigación'
+    ]
+  },
+];
+
+// SESSIONS - Trading hours
+const SESSIONS = [
+  { 
+    id: 'new_york', 
+    name: 'Nueva York', 
+    shortName: 'NY',
+    open: 13, // 9 AM EST = 13 UTC
+    close: 22, // 5 PM EST = 22 UTC
+    color: 'bg-blue-500'
+  },
+  { 
+    id: 'london', 
+    name: 'Londres', 
+    shortName: 'LDN',
+    open: 8, // 8 AM GMT = 8 UTC
+    close: 17, // 5 PM GMT = 17 UTC
+    color: 'bg-green-500'
+  },
+  { 
+    id: 'asia', 
+    name: 'Asia', 
+    shortName: 'ASIA',
+    open: 23, // 9 PM JST previous day
+    close: 8, // 5 PM JST = 8 UTC
+    color: 'bg-yellow-500'
   },
 ];
 
@@ -110,6 +166,37 @@ const getChangeClass = (value: number): string => {
 const cn = (...classes: (string | boolean | undefined)[]) => 
   classes.filter(Boolean).join(' ');
 
+// Get active sessions
+const getActiveSessions = () => {
+  const now = new Date();
+  const utcHour = now.getUTCHours();
+  const utcDay = now.getUTCDay();
+  const isWeekend = utcDay === 0 || utcDay === 6;
+  
+  const activeSessions: typeof SESSIONS = [];
+  
+  SESSIONS.forEach(session => {
+    if (session.open < session.close) {
+      // Normal session (e.g., London 8-17)
+      if (utcHour >= session.open && utcHour < session.close) {
+        activeSessions.push(session);
+      }
+    } else {
+      // Overnight session (e.g., Asia 23-8)
+      if (utcHour >= session.open || utcHour < session.close) {
+        activeSessions.push(session);
+      }
+    }
+  });
+  
+  return {
+    sessions: activeSessions,
+    isWeekend,
+    forexOpen: !isWeekend,
+    cryptoOpen: true
+  };
+};
+
 // Price generation
 const generatePrice = (symbol: string) => {
   const basePrices: Record<string, number> = {
@@ -135,8 +222,8 @@ const getTVSymbol = (symbol: string) => {
   return `FX:${base}${quote}`;
 };
 
-// Generate decision based on strategy
-const generateDecision = (symbol: string, strategy: 'new_york' | 'smart_money') => {
+// Generate decision based on selected strategy
+const generateDecision = (symbol: string, strategyId: 'ema50' | 'candlestick' | 'smart_money') => {
   const rand = Math.random();
   const action = rand > 0.6 ? 'BUY' : rand > 0.3 ? 'SELL' : 'WAIT';
   const direction = action === 'BUY' ? 'bullish' : action === 'SELL' ? 'bearish' : 'ranging';
@@ -145,35 +232,53 @@ const generateDecision = (symbol: string, strategy: 'new_york' | 'smart_money') 
   const { price } = generatePrice(symbol);
   const atr = symbol.includes('BTC') ? 500 : symbol.includes('ETH') ? 25 : 0.003;
   
-  // Strategy-specific reasoning
-  const strategyReasoning = {
-    new_york: {
-      name: 'Estrategia Nueva York',
-      description: 'Impulso + Retroceso + Continuación',
+  // Strategy-specific analysis
+  const strategyAnalysis = {
+    ema50: {
+      name: 'EMA 50',
+      analysis: 'Análisis de Media Móvil Exponencial',
       conditions: [
-        'Sesión de Nueva York activa (13:00-22:00 UTC)',
-        'Impulso inicial identificado en 1H',
-        'Retroceso hacia zona de valor (EMA 50)',
-        'Continuación en dirección del impulso'
+        { label: 'Precio vs EMA 50', value: direction === 'bullish' ? 'Por encima' : 'Por debajo', status: true },
+        { label: 'Tendencia EMA', value: direction === 'bullish' ? 'Alcista (EMA apunta arriba)' : 'Bajista (EMA apunta abajo)', status: true },
+        { label: 'Distancia de EMA', value: 'Retroceso hacia zona de valor', status: Math.random() > 0.3 },
+        { label: 'Ángulo de EMA', value: Math.random() > 0.5 ? 'Fuerte (pendiente pronunciada)' : 'Moderado', status: true },
       ],
-      entryReason: 'Entrada en retroceso hacia EMA 50 con impulso previo confirmado',
-      patterns: ['Impulse Move', 'Pullback to Value', 'Break of Structure']
+      entryReason: direction === 'bullish' 
+        ? 'Precio hace retroceso hacia EMA 50 en tendencia alcista. Buscar rebote con velas confirmatorias.'
+        : 'Precio hace retroceso hacia EMA 50 en tendencia bajista. Buscar rechazo con velas confirmatorias.',
+      patterns: ['Retroceso a EMA', 'Rebote desde valor', 'Continuación de tendencia']
+    },
+    candlestick: {
+      name: 'Velas Japonesas',
+      analysis: 'Análisis de Patrones de Velas',
+      conditions: [
+        { label: 'Patrón detectado', value: direction === 'bullish' ? 'Bullish Engulfing / Martillo' : 'Bearish Engulfing / Estrella', status: true },
+        { label: 'Ubicación', value: 'En zona clave de soporte/resistencia', status: Math.random() > 0.3 },
+        { label: 'Volumen', value: 'Volumen superior al promedio', status: Math.random() > 0.4 },
+        { label: 'Confirmación', value: 'Vela siguiente confirma el patrón', status: Math.random() > 0.5 },
+      ],
+      entryReason: direction === 'bullish'
+        ? 'Patrón alcista detectado en zona de soporte. Vela confirmatoria presente. Entrar en apertura siguiente.'
+        : 'Patrón bajista detectado en zona de resistencia. Vela confirmatoria presente. Entrar en apertura siguiente.',
+      patterns: ['Engulfing', 'Martillo/Estrella', 'Doji en zona clave']
     },
     smart_money: {
-      name: 'Estrategia Smart Money',
-      description: 'Manipulación + Liquidez + Order Blocks',
+      name: 'Smart Money',
+      analysis: 'Análisis de Flujo Institucional',
       conditions: [
-        'Identificación de Order Block principal',
-        'Barrido de liquidez (stop hunt) confirmado',
-        'Rechazo de zona de manipulación',
-        'Retorno al orden institucional'
+        { label: 'Order Block', value: 'OB identificado en zona actual', status: true },
+        { label: 'Liquidez', value: 'Barrido de stops reciente', status: Math.random() > 0.3 },
+        { label: 'Manipulación', value: 'Falso breakout detectado', status: Math.random() > 0.4 },
+        { label: 'Inducement', value: 'Trampa institucional completada', status: Math.random() > 0.5 },
       ],
-      entryReason: 'Entrada tras barrido de liquidez en Order Block institucional',
-      patterns: ['Liquidity Sweep', 'Order Block Rejection', 'Inducement Clear']
+      entryReason: direction === 'bullish'
+        ? 'Barrido de liquidez en zona de demanda institucional. Order Block alcista activo. Entrar tras mitigación.'
+        : 'Barrido de liquidez en zona de oferta institucional. Order Block bajista activo. Entrar tras mitigación.',
+      patterns: ['Order Block', 'Liquidity Sweep', 'Inducement Clear', 'Mitigation']
     }
   };
 
-  const selectedStrategy = strategyReasoning[strategy];
+  const selected = strategyAnalysis[strategyId];
   
   return {
     action,
@@ -183,11 +288,11 @@ const generateDecision = (symbol: string, strategy: 'new_york' | 'smart_money') 
     stopLoss: action === 'BUY' ? price - atr * 2 : action === 'SELL' ? price + atr * 2 : undefined,
     takeProfit: action === 'BUY' ? price + atr * 4 : action === 'SELL' ? price - atr * 4 : undefined,
     riskReward: 2,
-    strategy: selectedStrategy.name,
-    strategyDescription: selectedStrategy.description,
-    strategyConditions: selectedStrategy.conditions,
-    entryReason: selectedStrategy.entryReason,
-    patterns: selectedStrategy.patterns,
+    strategyName: selected.name,
+    strategyAnalysis: selected.analysis,
+    strategyConditions: selected.conditions,
+    entryReason: selected.entryReason,
+    patterns: selected.patterns,
     timeframes: {
       '1D': { 
         direction, 
@@ -199,17 +304,14 @@ const generateDecision = (symbol: string, strategy: 'new_york' | 'smart_money') 
         confidence: Math.floor(Math.random() * 30) + 60
       },
       '1H': {
-        strategy: strategy,
-        impulse: strategy === 'new_york' ? Math.random() > 0.3 : Math.random() > 0.5,
-        pullback: strategy === 'new_york' ? Math.random() > 0.4 : true,
-        patterns: selectedStrategy.patterns,
-        emaCross: Math.random() > 0.5,
+        impulse: Math.random() > 0.4,
+        pullback: Math.random() > 0.4,
         volume: 'high',
         confidence: Math.floor(Math.random() * 30) + 50
       },
       '5M': {
         confirmed: action !== 'WAIT',
-        reasons: action !== 'WAIT' ? ['Vela confirmatoria', 'Volumen institucional', 'Orden flow positivo'] : [],
+        reasons: action !== 'WAIT' ? ['Señal confirmada', 'Condiciones cumplidas', 'Timing correcto'] : [],
         riskReward: 2,
         confidence: Math.floor(Math.random() * 30) + 40
       }
@@ -223,16 +325,22 @@ function DashboardTab() {
   const [category, setCategory] = useState('all');
   const [prices, setPrices] = useState<Map<string, ReturnType<typeof generatePrice>>>(new Map());
   const [mounted, setMounted] = useState(false);
+  const [marketStatus, setMarketStatus] = useState<ReturnType<typeof getActiveSessions>>({
+    sessions: [], isWeekend: false, forexOpen: true, cryptoOpen: true
+  });
 
   useEffect(() => {
     setMounted(true);
-    const updatePrices = () => {
+    
+    const updateData = () => {
       const newPrices = new Map();
       ASSETS.forEach(a => newPrices.set(a.symbol, generatePrice(a.symbol)));
       setPrices(newPrices);
+      setMarketStatus(getActiveSessions());
     };
-    updatePrices();
-    const interval = setInterval(updatePrices, 30000);
+    
+    updateData();
+    const interval = setInterval(updateData, 30000);
     return () => clearInterval(interval);
   }, []);
 
@@ -242,13 +350,34 @@ function DashboardTab() {
 
   return (
     <div className="flex flex-col h-full">
+      {/* Market Status with Sessions */}
       <div className="p-3 bg-card border-b border-border">
         <div className="flex items-center justify-between mb-2">
           <span className="text-xs text-muted-foreground">Estado del Mercado</span>
-          <Badge variant="bull">Abierto</Badge>
+          <Badge variant={marketStatus.forexOpen ? 'bull' : 'neutral'}>
+            {marketStatus.forexOpen ? 'Abierto' : 'Cerrado'}
+          </Badge>
+        </div>
+        {/* Active Sessions */}
+        <div className="flex gap-2 overflow-x-auto">
+          {SESSIONS.map((session) => {
+            const isActive = marketStatus.sessions.some(s => s.id === session.id);
+            return (
+              <Badge 
+                key={session.id} 
+                variant={isActive ? 'session' : 'outline'}
+                className="flex items-center gap-1"
+              >
+                <Globe className="w-3 h-3" />
+                {session.shortName}
+                {isActive && <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />}
+              </Badge>
+            );
+          })}
         </div>
       </div>
 
+      {/* Category Filter */}
       <div className="p-3 border-b border-border">
         <div className="flex gap-2 overflow-x-auto">
           {CATEGORIES.map((cat) => (
@@ -264,6 +393,7 @@ function DashboardTab() {
         </div>
       </div>
 
+      {/* Asset List */}
       <ScrollArea className="flex-1">
         <div className="p-2 space-y-1">
           {filteredAssets.map((asset) => {
@@ -310,7 +440,7 @@ function AssetQuickInfo({ asset, price }: { asset: typeof ASSETS[0]; price?: Ret
   const [decision, setDecision] = useState<ReturnType<typeof generateDecision> | null>(null);
 
   useEffect(() => {
-    setDecision(generateDecision(asset.symbol, 'new_york'));
+    setDecision(generateDecision(asset.symbol, 'ema50'));
   }, [asset.symbol]);
 
   return (
@@ -442,12 +572,16 @@ function ChartsTab() {
 // ============ OPERATION TAB ============
 function OperationTab() {
   const [selectedAsset, setSelectedAsset] = useState(ASSETS[0]);
-  const [selectedStrategy, setSelectedStrategy] = useState<'new_york' | 'smart_money'>('new_york');
+  const [selectedStrategy, setSelectedStrategy] = useState<'ema50' | 'candlestick' | 'smart_money'>('ema50');
   const [mounted, setMounted] = useState(false);
   const [decision, setDecision] = useState<ReturnType<typeof generateDecision> | null>(null);
+  const [marketStatus, setMarketStatus] = useState<ReturnType<typeof getActiveSessions>>({
+    sessions: [], isWeekend: false, forexOpen: true, cryptoOpen: true
+  });
 
   useEffect(() => {
     setMounted(true);
+    setMarketStatus(getActiveSessions());
   }, []);
 
   useEffect(() => {
@@ -481,9 +615,28 @@ function OperationTab() {
         </Select>
       </div>
 
+      {/* Active Sessions */}
+      <div className="p-2 bg-muted/30 border-b border-border">
+        <div className="flex items-center gap-2 overflow-x-auto">
+          {SESSIONS.map((session) => {
+            const isActive = marketStatus.sessions.some(s => s.id === session.id);
+            return (
+              <Badge 
+                key={session.id} 
+                variant={isActive ? 'session' : 'outline'}
+                className="text-xs"
+              >
+                {session.shortName}
+                {isActive && <span className="w-1.5 h-1.5 bg-green-400 rounded-full ml-1 animate-pulse" />}
+              </Badge>
+            );
+          })}
+        </div>
+      </div>
+
       {/* Strategy Selector */}
       <div className="p-3 bg-card border-b border-border">
-        <div className="text-xs text-muted-foreground mb-2">Estrategia Activa</div>
+        <div className="text-xs text-muted-foreground mb-2">Estrategia de Análisis</div>
         <div className="flex gap-2">
           {STRATEGIES.map((strategy) => {
             const Icon = strategy.icon;
@@ -492,27 +645,22 @@ function OperationTab() {
               <Button
                 key={strategy.id}
                 variant={isActive ? 'default' : 'outline'}
-                onClick={() => setSelectedStrategy(strategy.id as 'new_york' | 'smart_money')}
-                className="flex-1 flex items-center gap-2"
+                onClick={() => setSelectedStrategy(strategy.id as 'ema50' | 'candlestick' | 'smart_money')}
+                className="flex-1 flex flex-col items-center gap-1 h-auto py-2"
               >
                 <Icon className="w-4 h-4" />
-                {strategy.name}
+                <span className="text-xs">{strategy.name}</span>
               </Button>
             );
           })}
         </div>
-        {currentStrategy && (
-          <div className="text-xs text-muted-foreground mt-2 text-center">
-            {currentStrategy.description}
-          </div>
-        )}
       </div>
 
       {/* Chart */}
-      <div className="flex-1 min-h-[300px] bg-black/20 relative">
+      <div className="flex-1 min-h-[280px] bg-black/20 relative">
         <iframe
           src={`https://s.tradingview.com/widgetembed/?frameElementId=tv_widget&symbol=${getTVSymbol(selectedAsset.symbol)}&interval=15&hidesidetoolbar=1&hidetoptoolbar=1&symboledit=0&saveimage=0&toolbarbg=0a0a0a&studies=%5B%22EMA%40tv-basicstudies%22%5D&theme=dark&style=1&timezone=Etc%2FUTC&withdateranges=1&hidevolume=1`}
-          style={{ width: '100%', height: '100%', border: 'none', minHeight: '300px' }}
+          style={{ width: '100%', height: '100%', border: 'none', minHeight: '280px' }}
           allowFullScreen
         />
         
@@ -602,12 +750,16 @@ function OperationTab() {
 // ============ AI ANALYSIS TAB ============
 function AIAnalysisTab() {
   const [selectedAsset, setSelectedAsset] = useState(ASSETS[0]);
-  const [selectedStrategy, setSelectedStrategy] = useState<'new_york' | 'smart_money'>('new_york');
+  const [selectedStrategy, setSelectedStrategy] = useState<'ema50' | 'candlestick' | 'smart_money'>('ema50');
   const [mounted, setMounted] = useState(false);
   const [decision, setDecision] = useState<ReturnType<typeof generateDecision> | null>(null);
+  const [marketStatus, setMarketStatus] = useState<ReturnType<typeof getActiveSessions>>({
+    sessions: [], isWeekend: false, forexOpen: true, cryptoOpen: true
+  });
 
   useEffect(() => {
     setMounted(true);
+    setMarketStatus(getActiveSessions());
   }, []);
 
   useEffect(() => {
@@ -641,9 +793,31 @@ function AIAnalysisTab() {
         </Select>
       </div>
 
+      {/* Active Sessions */}
+      <div className="p-2 bg-muted/30 border-b border-border">
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-muted-foreground">Sesiones Activas</span>
+          <div className="flex gap-2">
+            {SESSIONS.map((session) => {
+              const isActive = marketStatus.sessions.some(s => s.id === session.id);
+              return (
+                <Badge 
+                  key={session.id} 
+                  variant={isActive ? 'session' : 'outline'}
+                  className="text-xs"
+                >
+                  {session.shortName}
+                  {isActive && <span className="w-1.5 h-1.5 bg-green-400 rounded-full ml-1 animate-pulse" />}
+                </Badge>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
       {/* Strategy Selector */}
       <div className="p-3 bg-card border-b border-border">
-        <div className="text-xs text-muted-foreground mb-2">Estrategia Activa</div>
+        <div className="text-xs text-muted-foreground mb-2">Estrategia de Análisis</div>
         <div className="flex gap-2">
           {STRATEGIES.map((strategy) => {
             const Icon = strategy.icon;
@@ -652,15 +826,20 @@ function AIAnalysisTab() {
               <Button
                 key={strategy.id}
                 variant={isActive ? 'default' : 'outline'}
-                onClick={() => setSelectedStrategy(strategy.id as 'new_york' | 'smart_money')}
-                className="flex-1 flex items-center gap-2"
+                onClick={() => setSelectedStrategy(strategy.id as 'ema50' | 'candlestick' | 'smart_money')}
+                className="flex-1 flex flex-col items-center gap-1 h-auto py-2"
               >
                 <Icon className="w-4 h-4" />
-                {strategy.name}
+                <span className="text-xs">{strategy.name}</span>
               </Button>
             );
           })}
         </div>
+        {currentStrategy && (
+          <div className="text-xs text-muted-foreground mt-2 text-center">
+            {currentStrategy.description}
+          </div>
+        )}
       </div>
 
       <ScrollArea className="flex-1">
@@ -670,9 +849,9 @@ function AIAnalysisTab() {
               {/* Market & Strategy Info */}
               <Card className="bg-gradient-to-r from-primary/10 to-primary/5">
                 <CardContent className="p-3">
-                  <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center justify-between">
                     <div>
-                      <div className="text-xs text-muted-foreground">Mercado Actual</div>
+                      <div className="text-xs text-muted-foreground">Mercado</div>
                       <div className="font-bold text-lg">{selectedAsset.symbol}</div>
                     </div>
                     <div className="text-right">
@@ -708,28 +887,33 @@ function AIAnalysisTab() {
                     </div>
                   </div>
                   <Progress value={decision.probability} className="h-3" />
-                  <p className="text-sm text-muted-foreground mt-3">{decision.strategyDescription}</p>
                 </CardContent>
               </Card>
 
-              {/* Strategy Reasoning */}
+              {/* Strategy Analysis */}
               <Card className="border-primary/30">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base flex items-center gap-2">
                     {currentStrategy && <currentStrategy.icon className="w-4 h-4" />}
-                    Razonamiento de la Estrategia
+                    {decision.strategyAnalysis}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2 text-sm">
-                  <div className="text-xs text-muted-foreground mb-2">Condiciones evaluadas:</div>
                   {decision.strategyConditions.map((condition, i) => (
-                    <div key={i} className="flex items-start gap-2">
-                      <CheckCircle className="w-4 h-4 text-green-500 mt-0.5 shrink-0" />
-                      <span>{condition}</span>
+                    <div key={i} className="flex items-center justify-between py-1 border-b border-border/50 last:border-0">
+                      <span className="text-muted-foreground">{condition.label}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs">{condition.value}</span>
+                        {condition.status ? 
+                          <CheckCircle className="w-4 h-4 text-green-500" /> : 
+                          <XCircle className="w-4 h-4 text-muted-foreground" />
+                        }
+                      </div>
                     </div>
                   ))}
+                  
                   {decision.entryReason && (
-                    <div className="mt-3 p-2 bg-muted rounded-lg">
+                    <div className="mt-3 p-3 bg-muted rounded-lg">
                       <div className="text-xs text-muted-foreground mb-1">Razón de entrada:</div>
                       <span className="text-sm">{decision.entryReason}</span>
                     </div>
@@ -737,105 +921,55 @@ function AIAnalysisTab() {
                 </CardContent>
               </Card>
 
-              {/* 1D Analysis */}
+              {/* Multi-Timeframe Analysis */}
               <Card>
                 <CardHeader className="pb-2">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-base flex items-center gap-2">
-                      <Clock className="w-4 h-4" />
-                      1D - Dirección
-                    </CardTitle>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Clock className="w-4 h-4" />
+                    Análisis Multi-Temporalidad
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {/* 1D */}
+                  <div className="flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline">1D</Badge>
+                      <span className="text-muted-foreground">Dirección</span>
+                    </div>
                     <Badge variant={decision.direction === 'bullish' ? 'bull' : decision.direction === 'bearish' ? 'bear' : 'neutral'}>
                       {decision.direction === 'bullish' ? 'Alcista' : decision.direction === 'bearish' ? 'Bajista' : 'Lateral'}
                     </Badge>
                   </div>
-                </CardHeader>
-                <CardContent className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Tendencia</span>
-                    <span className="capitalize">{decision.timeframes['1D'].trend}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">EMA 50</span>
-                    <span className="capitalize">{decision.timeframes['1D'].ema50Position}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Acción del precio</span>
-                    <span>{decision.timeframes['1D'].priceAction}</span>
-                  </div>
-                  <div className="flex items-center gap-2 pt-2">
-                    <Progress value={decision.timeframes['1D'].confidence} className="h-2 flex-1" />
-                    <span className="text-xs">{decision.timeframes['1D'].confidence}%</span>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* 1H Analysis */}
-              <Card>
-                <CardHeader className="pb-2">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-base flex items-center gap-2">
-                      <Zap className="w-4 h-4" />
-                      1H - Estrategia
-                    </CardTitle>
-                    <Badge variant="session">
-                      {currentStrategy?.name}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-2 text-sm">
-                  <div className="grid grid-cols-2 gap-2">
+                  
+                  {/* 1H */}
+                  <div className="flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline">1H</Badge>
+                      <span className="text-muted-foreground">Estrategia</span>
+                    </div>
                     <div className="flex items-center gap-2">
                       {decision.timeframes['1H'].impulse ? 
                         <CheckCircle className="w-4 h-4 text-green-500" /> : 
                         <XCircle className="w-4 h-4 text-muted-foreground" />
                       }
                       <span>Impulso</span>
-                    </div>
-                    <div className="flex items-center gap-2">
                       {decision.timeframes['1H'].pullback ? 
-                        <CheckCircle className="w-4 h-4 text-green-500" /> : 
-                        <XCircle className="w-4 h-4 text-muted-foreground" />
+                        <CheckCircle className="w-4 h-4 text-green-500 ml-2" /> : 
+                        <XCircle className="w-4 h-4 text-muted-foreground ml-2" />
                       }
                       <span>Retroceso</span>
                     </div>
                   </div>
-                  <div className="pt-2">
-                    <span className="text-xs text-muted-foreground">Patrones: </span>
-                    {decision.patterns.map((p, i) => (
-                      <Badge key={i} variant="outline" className="mr-1 text-xs">{p}</Badge>
-                    ))}
-                  </div>
-                  <div className="flex items-center gap-2 pt-2">
-                    <Progress value={decision.timeframes['1H'].confidence} className="h-2 flex-1" />
-                    <span className="text-xs">{decision.timeframes['1H'].confidence}%</span>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* 5M Analysis */}
-              <Card>
-                <CardHeader className="pb-2">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-base flex items-center gap-2">
-                      <Target className="w-4 h-4" />
-                      5M - Ejecución
-                    </CardTitle>
+                  
+                  {/* 5M */}
+                  <div className="flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline">5M</Badge>
+                      <span className="text-muted-foreground">Ejecución</span>
+                    </div>
                     <Badge variant={decision.timeframes['5M'].confirmed ? 'bull' : 'neutral'}>
                       {decision.timeframes['5M'].confirmed ? 'Confirmado' : 'Pendiente'}
                     </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-2 text-sm">
-                  {decision.timeframes['5M'].reasons.map((reason, i) => (
-                    <div key={i} className="flex items-center gap-2">
-                      <CheckCircle className="w-4 h-4 text-green-500" />
-                      <span>{reason}</span>
-                    </div>
-                  ))}
-                  <div className="flex items-center gap-2 pt-2">
-                    <Progress value={decision.timeframes['5M'].confidence} className="h-2 flex-1" />
-                    <span className="text-xs">{decision.timeframes['5M'].confidence}%</span>
                   </div>
                 </CardContent>
               </Card>
