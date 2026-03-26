@@ -197,21 +197,69 @@ const getActiveSessions = () => {
   };
 };
 
-// Price generation
-const generatePrice = (symbol: string) => {
-  const basePrices: Record<string, number> = {
-    'EUR/USD': 1.0850, 'GBP/USD': 1.2650, 'USD/JPY': 149.50, 'USD/CHF': 0.8850,
-    'AUD/USD': 0.6550, 'USD/CAD': 1.3650, 'NZD/USD': 0.6150, 'EUR/GBP': 0.8575,
-    'EUR/JPY': 162.25, 'GBP/JPY': 189.15, 'EUR/AUD': 1.6550, 'EUR/CAD': 1.4825,
-    'EUR/CHF': 0.9600, 'GBP/CHF': 1.1190, 'AUD/JPY': 97.85, 'CAD/JPY': 109.50,
-    'USD/MXN': 17.15, 'USD/ZAR': 18.75, 'USD/TRY': 32.50, 'USD/SGD': 1.3450,
-    'BTC/USD': 67500, 'ETH/USD': 3450,
+// Price data interface
+interface PriceData {
+  price: number;
+  change: number;
+  changePercent: number;
+  high?: number;
+  low?: number;
+  open?: number;
+}
+
+// Fetch real prices from API
+const fetchPrices = async (): Promise<Map<string, PriceData>> => {
+  try {
+    const response = await fetch('/api/prices');
+    const data = await response.json();
+    
+    if (data.success && data.prices) {
+      const priceMap = new Map<string, PriceData>();
+      Object.entries(data.prices).forEach(([symbol, priceData]: [string, any]) => {
+        priceMap.set(symbol, priceData);
+      });
+      return priceMap;
+    }
+  } catch (error) {
+    console.error('Error fetching prices:', error);
+  }
+  
+  // Fallback to base prices if API fails
+  const basePrices = new Map<string, PriceData>();
+  const basePriceValues: Record<string, number> = {
+    'EUR/USD': 1.0825, 'GBP/USD': 1.2630, 'USD/JPY': 150.25, 'USD/CHF': 0.8840,
+    'AUD/USD': 0.6520, 'USD/CAD': 1.3680, 'NZD/USD': 0.6120, 'EUR/GBP': 0.8570,
+    'EUR/JPY': 162.70, 'GBP/JPY': 189.65, 'EUR/AUD': 1.6600, 'EUR/CAD': 1.4800,
+    'EUR/CHF': 0.9570, 'GBP/CHF': 1.1165, 'AUD/JPY': 97.95, 'CAD/JPY': 109.75,
+    'USD/MXN': 17.05, 'USD/ZAR': 18.65, 'USD/TRY': 32.25, 'USD/SGD': 1.3420,
+    'BTC/USD': 87500, 'ETH/USD': 3450,
   };
+  
+  Object.entries(basePriceValues).forEach(([symbol, price]) => {
+    basePrices.set(symbol, { price, change: 0, changePercent: 0 });
+  });
+  
+  return basePrices;
+};
+
+// Generate single price from current price data
+const generatePrice = (symbol: string, currentPrice?: PriceData) => {
+  if (currentPrice) {
+    return currentPrice;
+  }
+  
+  // Fallback base prices
+  const basePrices: Record<string, number> = {
+    'EUR/USD': 1.0825, 'GBP/USD': 1.2630, 'USD/JPY': 150.25, 'USD/CHF': 0.8840,
+    'AUD/USD': 0.6520, 'USD/CAD': 1.3680, 'NZD/USD': 0.6120, 'EUR/GBP': 0.8570,
+    'EUR/JPY': 162.70, 'GBP/JPY': 189.65, 'EUR/AUD': 1.6600, 'EUR/CAD': 1.4800,
+    'EUR/CHF': 0.9570, 'GBP/CHF': 1.1165, 'AUD/JPY': 97.95, 'CAD/JPY': 109.75,
+    'USD/MXN': 17.05, 'USD/ZAR': 18.65, 'USD/TRY': 32.25, 'USD/SGD': 1.3420,
+    'BTC/USD': 87500, 'ETH/USD': 3450,
+  };
+  
   const base = basePrices[symbol] || 1;
-  const vol = symbol.includes('BTC') ? 500 : symbol.includes('ETH') ? 25 : symbol.includes('JPY') ? 0.15 : 0.001;
-  const change = (Math.random() - 0.5) * vol * 2;
-  const price = base + change;
-  return { price, change, changePercent: (change / base) * 100 };
+  return { price: base, change: 0, changePercent: 0 };
 };
 
 // TradingView symbol
@@ -323,7 +371,7 @@ const generateDecision = (symbol: string, strategyId: 'ema50' | 'candlestick' | 
 function DashboardTab() {
   const [selectedAsset, setSelectedAsset] = useState<typeof ASSETS[0] | null>(null);
   const [category, setCategory] = useState('all');
-  const [prices, setPrices] = useState<Map<string, ReturnType<typeof generatePrice>>>(new Map());
+  const [prices, setPrices] = useState<Map<string, PriceData>>(new Map());
   const [mounted, setMounted] = useState(false);
   const [marketStatus, setMarketStatus] = useState<ReturnType<typeof getActiveSessions>>({
     sessions: [], isWeekend: false, forexOpen: true, cryptoOpen: true
@@ -332,15 +380,15 @@ function DashboardTab() {
   useEffect(() => {
     setMounted(true);
     
-    const updateData = () => {
-      const newPrices = new Map();
-      ASSETS.forEach(a => newPrices.set(a.symbol, generatePrice(a.symbol)));
+    const updateData = async () => {
+      const newPrices = await fetchPrices();
       setPrices(newPrices);
       setMarketStatus(getActiveSessions());
     };
     
     updateData();
-    const interval = setInterval(updateData, 30000);
+    // Update every 3 seconds for real-time data
+    const interval = setInterval(updateData, 3000);
     return () => clearInterval(interval);
   }, []);
 
@@ -429,7 +477,7 @@ function DashboardTab() {
 
       {selectedAsset && (
         <div className="p-3 border-t border-border bg-card">
-          <AssetQuickInfo asset={selectedAsset} price={prices.get(selectedAsset.symbol)} />
+          <AssetQuickInfo asset={selectedAsset} price={prices.get(selectedAsset.symbol)} allPrices={prices} />
         </div>
       )}
     </div>
