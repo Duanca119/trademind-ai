@@ -15,7 +15,9 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Zap,
-  DollarSign
+  DollarSign,
+  Building2,
+  Sparkles
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -68,10 +70,21 @@ const CATEGORIES = [
   { id: 'crypto', name: 'Cripto' },
 ];
 
-const TIMEFRAMES = [
-  { id: '1D', name: 'Diario', purpose: 'Dirección - Define el sesgo general' },
-  { id: '1H', name: '1 Hora', purpose: 'Estrategia - Confirma patrones' },
-  { id: '5M', name: '5 Min', purpose: 'Ejecución - Punto de entrada' },
+const STRATEGIES = [
+  { 
+    id: 'new_york', 
+    name: 'Nueva York', 
+    icon: Building2,
+    description: 'Impulso + Retroceso + Continuación',
+    color: 'bg-blue-500'
+  },
+  { 
+    id: 'smart_money', 
+    name: 'Smart Money', 
+    icon: Sparkles,
+    description: 'Manipulación + Liquidez + Order Blocks',
+    color: 'bg-purple-500'
+  },
 ];
 
 // Utility functions
@@ -122,8 +135,8 @@ const getTVSymbol = (symbol: string) => {
   return `FX:${base}${quote}`;
 };
 
-// Generate decision
-const generateDecision = (symbol: string) => {
+// Generate decision based on strategy
+const generateDecision = (symbol: string, strategy: 'new_york' | 'smart_money') => {
   const rand = Math.random();
   const action = rand > 0.6 ? 'BUY' : rand > 0.3 ? 'SELL' : 'WAIT';
   const direction = action === 'BUY' ? 'bullish' : action === 'SELL' ? 'bearish' : 'ranging';
@@ -131,6 +144,36 @@ const generateDecision = (symbol: string) => {
   
   const { price } = generatePrice(symbol);
   const atr = symbol.includes('BTC') ? 500 : symbol.includes('ETH') ? 25 : 0.003;
+  
+  // Strategy-specific reasoning
+  const strategyReasoning = {
+    new_york: {
+      name: 'Estrategia Nueva York',
+      description: 'Impulso + Retroceso + Continuación',
+      conditions: [
+        'Sesión de Nueva York activa (13:00-22:00 UTC)',
+        'Impulso inicial identificado en 1H',
+        'Retroceso hacia zona de valor (EMA 50)',
+        'Continuación en dirección del impulso'
+      ],
+      entryReason: 'Entrada en retroceso hacia EMA 50 con impulso previo confirmado',
+      patterns: ['Impulse Move', 'Pullback to Value', 'Break of Structure']
+    },
+    smart_money: {
+      name: 'Estrategia Smart Money',
+      description: 'Manipulación + Liquidez + Order Blocks',
+      conditions: [
+        'Identificación de Order Block principal',
+        'Barrido de liquidez (stop hunt) confirmado',
+        'Rechazo de zona de manipulación',
+        'Retorno al orden institucional'
+      ],
+      entryReason: 'Entrada tras barrido de liquidez en Order Block institucional',
+      patterns: ['Liquidity Sweep', 'Order Block Rejection', 'Inducement Clear']
+    }
+  };
+
+  const selectedStrategy = strategyReasoning[strategy];
   
   return {
     action,
@@ -140,8 +183,11 @@ const generateDecision = (symbol: string) => {
     stopLoss: action === 'BUY' ? price - atr * 2 : action === 'SELL' ? price + atr * 2 : undefined,
     takeProfit: action === 'BUY' ? price + atr * 4 : action === 'SELL' ? price - atr * 4 : undefined,
     riskReward: 2,
-    strategy: action === 'BUY' ? 'Estrategia Nueva York: Impulso + Retroceso' : 
-              action === 'SELL' ? 'Estrategia Smart Money: Manipulación' : 'Sin señal clara',
+    strategy: selectedStrategy.name,
+    strategyDescription: selectedStrategy.description,
+    strategyConditions: selectedStrategy.conditions,
+    entryReason: selectedStrategy.entryReason,
+    patterns: selectedStrategy.patterns,
     timeframes: {
       '1D': { 
         direction, 
@@ -153,17 +199,17 @@ const generateDecision = (symbol: string) => {
         confidence: Math.floor(Math.random() * 30) + 60
       },
       '1H': {
-        strategy: action !== 'WAIT' ? 'new_york' : 'none',
-        impulse: Math.random() > 0.5,
-        pullback: Math.random() > 0.5,
-        patterns: ['Bullish Engulfing', 'Higher Low'],
+        strategy: strategy,
+        impulse: strategy === 'new_york' ? Math.random() > 0.3 : Math.random() > 0.5,
+        pullback: strategy === 'new_york' ? Math.random() > 0.4 : true,
+        patterns: selectedStrategy.patterns,
         emaCross: Math.random() > 0.5,
         volume: 'high',
         confidence: Math.floor(Math.random() * 30) + 50
       },
       '5M': {
         confirmed: action !== 'WAIT',
-        reasons: action !== 'WAIT' ? ['Vela alcista', 'Precio sobre EMA 50'] : [],
+        reasons: action !== 'WAIT' ? ['Vela confirmatoria', 'Volumen institucional', 'Orden flow positivo'] : [],
         riskReward: 2,
         confidence: Math.floor(Math.random() * 30) + 40
       }
@@ -264,7 +310,7 @@ function AssetQuickInfo({ asset, price }: { asset: typeof ASSETS[0]; price?: Ret
   const [decision, setDecision] = useState<ReturnType<typeof generateDecision> | null>(null);
 
   useEffect(() => {
-    setDecision(generateDecision(asset.symbol));
+    setDecision(generateDecision(asset.symbol, 'new_york'));
   }, [asset.symbol]);
 
   return (
@@ -321,7 +367,6 @@ function ChartsTab() {
     }
   }, [selectedAsset.symbol, mounted]);
 
-  // Chart intervals for each timeframe
   const chartConfigs = [
     { id: '1D', name: 'Diario', purpose: 'Dirección', interval: 'D', height: 280 },
     { id: '1H', name: '1 Hora', purpose: 'Estrategia', interval: '60', height: 250 },
@@ -332,7 +377,6 @@ function ChartsTab() {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Asset Selector & Price */}
       <div className="p-3 bg-card border-b border-border space-y-3">
         <Select 
           value={selectedAsset.symbol} 
@@ -368,12 +412,10 @@ function ChartsTab() {
         )}
       </div>
 
-      {/* Three Charts Stacked */}
       <ScrollArea className="flex-1">
         <div className="space-y-2 p-2">
-          {chartConfigs.map((config, index) => (
+          {chartConfigs.map((config) => (
             <div key={config.id} className="bg-card rounded-lg border border-border overflow-hidden">
-              {/* Chart Header */}
               <div className="flex items-center justify-between px-3 py-2 bg-muted/50 border-b border-border">
                 <div className="flex items-center gap-2">
                   <Badge variant="outline" className="text-xs font-bold">{config.id}</Badge>
@@ -382,7 +424,6 @@ function ChartsTab() {
                 <span className="text-xs text-muted-foreground">{config.purpose}</span>
               </div>
               
-              {/* Chart iframe */}
               <div style={{ height: config.height }} className="bg-black/20">
                 <iframe
                   src={`https://s.tradingview.com/widgetembed/?frameElementId=tv_${config.id}&symbol=${getTVSymbol(selectedAsset.symbol)}&interval=${config.interval}&hidesidetoolbar=1&hidetoptoolbar=1&symboledit=0&saveimage=0&toolbarbg=0a0a0a&studies=%5B%22EMA%40tv-basicstudies%22%5D&theme=dark&style=1&timezone=Etc%2FUTC&withdateranges=1&hidevolume=1`}
@@ -401,6 +442,7 @@ function ChartsTab() {
 // ============ OPERATION TAB ============
 function OperationTab() {
   const [selectedAsset, setSelectedAsset] = useState(ASSETS[0]);
+  const [selectedStrategy, setSelectedStrategy] = useState<'new_york' | 'smart_money'>('new_york');
   const [mounted, setMounted] = useState(false);
   const [decision, setDecision] = useState<ReturnType<typeof generateDecision> | null>(null);
 
@@ -410,14 +452,17 @@ function OperationTab() {
 
   useEffect(() => {
     if (mounted) {
-      setDecision(generateDecision(selectedAsset.symbol));
+      setDecision(generateDecision(selectedAsset.symbol, selectedStrategy));
     }
-  }, [selectedAsset.symbol, mounted]);
+  }, [selectedAsset.symbol, selectedStrategy, mounted]);
 
   if (!mounted) return null;
 
+  const currentStrategy = STRATEGIES.find(s => s.id === selectedStrategy);
+
   return (
     <div className="flex flex-col h-full">
+      {/* Asset Selector */}
       <div className="p-3 bg-card border-b border-border">
         <Select 
           value={selectedAsset.symbol} 
@@ -436,10 +481,38 @@ function OperationTab() {
         </Select>
       </div>
 
-      <div className="flex-1 min-h-[350px] bg-black/20 relative">
+      {/* Strategy Selector */}
+      <div className="p-3 bg-card border-b border-border">
+        <div className="text-xs text-muted-foreground mb-2">Estrategia Activa</div>
+        <div className="flex gap-2">
+          {STRATEGIES.map((strategy) => {
+            const Icon = strategy.icon;
+            const isActive = selectedStrategy === strategy.id;
+            return (
+              <Button
+                key={strategy.id}
+                variant={isActive ? 'default' : 'outline'}
+                onClick={() => setSelectedStrategy(strategy.id as 'new_york' | 'smart_money')}
+                className="flex-1 flex items-center gap-2"
+              >
+                <Icon className="w-4 h-4" />
+                {strategy.name}
+              </Button>
+            );
+          })}
+        </div>
+        {currentStrategy && (
+          <div className="text-xs text-muted-foreground mt-2 text-center">
+            {currentStrategy.description}
+          </div>
+        )}
+      </div>
+
+      {/* Chart */}
+      <div className="flex-1 min-h-[300px] bg-black/20 relative">
         <iframe
           src={`https://s.tradingview.com/widgetembed/?frameElementId=tv_widget&symbol=${getTVSymbol(selectedAsset.symbol)}&interval=15&hidesidetoolbar=1&hidetoptoolbar=1&symboledit=0&saveimage=0&toolbarbg=0a0a0a&studies=%5B%22EMA%40tv-basicstudies%22%5D&theme=dark&style=1&timezone=Etc%2FUTC&withdateranges=1&hidevolume=1`}
-          style={{ width: '100%', height: '100%', border: 'none', minHeight: '350px' }}
+          style={{ width: '100%', height: '100%', border: 'none', minHeight: '300px' }}
           allowFullScreen
         />
         
@@ -465,6 +538,7 @@ function OperationTab() {
         )}
       </div>
 
+      {/* Operation Details */}
       <div className="p-3 bg-card border-t border-border">
         {decision ? (
           <div className="space-y-3">
@@ -514,10 +588,6 @@ function OperationTab() {
               <span className="text-muted-foreground">Riesgo/Beneficio</span>
               <Badge variant="outline">1:{decision.riskReward}</Badge>
             </div>
-
-            <div className="text-xs text-muted-foreground">
-              {decision.strategy}
-            </div>
           </div>
         ) : (
           <div className="text-center text-muted-foreground py-4">
@@ -532,6 +602,7 @@ function OperationTab() {
 // ============ AI ANALYSIS TAB ============
 function AIAnalysisTab() {
   const [selectedAsset, setSelectedAsset] = useState(ASSETS[0]);
+  const [selectedStrategy, setSelectedStrategy] = useState<'new_york' | 'smart_money'>('new_york');
   const [mounted, setMounted] = useState(false);
   const [decision, setDecision] = useState<ReturnType<typeof generateDecision> | null>(null);
 
@@ -541,14 +612,17 @@ function AIAnalysisTab() {
 
   useEffect(() => {
     if (mounted) {
-      setDecision(generateDecision(selectedAsset.symbol));
+      setDecision(generateDecision(selectedAsset.symbol, selectedStrategy));
     }
-  }, [selectedAsset.symbol, mounted]);
+  }, [selectedAsset.symbol, selectedStrategy, mounted]);
 
   if (!mounted) return null;
 
+  const currentStrategy = STRATEGIES.find(s => s.id === selectedStrategy);
+
   return (
     <div className="flex flex-col h-full">
+      {/* Asset Selector */}
       <div className="p-3 bg-card border-b border-border">
         <Select 
           value={selectedAsset.symbol} 
@@ -567,10 +641,51 @@ function AIAnalysisTab() {
         </Select>
       </div>
 
+      {/* Strategy Selector */}
+      <div className="p-3 bg-card border-b border-border">
+        <div className="text-xs text-muted-foreground mb-2">Estrategia Activa</div>
+        <div className="flex gap-2">
+          {STRATEGIES.map((strategy) => {
+            const Icon = strategy.icon;
+            const isActive = selectedStrategy === strategy.id;
+            return (
+              <Button
+                key={strategy.id}
+                variant={isActive ? 'default' : 'outline'}
+                onClick={() => setSelectedStrategy(strategy.id as 'new_york' | 'smart_money')}
+                className="flex-1 flex items-center gap-2"
+              >
+                <Icon className="w-4 h-4" />
+                {strategy.name}
+              </Button>
+            );
+          })}
+        </div>
+      </div>
+
       <ScrollArea className="flex-1">
         <div className="p-3 space-y-4">
           {decision ? (
             <>
+              {/* Market & Strategy Info */}
+              <Card className="bg-gradient-to-r from-primary/10 to-primary/5">
+                <CardContent className="p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <div className="text-xs text-muted-foreground">Mercado Actual</div>
+                      <div className="font-bold text-lg">{selectedAsset.symbol}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xs text-muted-foreground">Estrategia</div>
+                      <div className="font-semibold flex items-center gap-1">
+                        {currentStrategy && <currentStrategy.icon className="w-4 h-4" />}
+                        {currentStrategy?.name}
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
               {/* Final Decision */}
               <Card>
                 <CardHeader className="pb-2">
@@ -593,7 +708,32 @@ function AIAnalysisTab() {
                     </div>
                   </div>
                   <Progress value={decision.probability} className="h-3" />
-                  <p className="text-sm text-muted-foreground mt-3">{decision.strategy}</p>
+                  <p className="text-sm text-muted-foreground mt-3">{decision.strategyDescription}</p>
+                </CardContent>
+              </Card>
+
+              {/* Strategy Reasoning */}
+              <Card className="border-primary/30">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    {currentStrategy && <currentStrategy.icon className="w-4 h-4" />}
+                    Razonamiento de la Estrategia
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2 text-sm">
+                  <div className="text-xs text-muted-foreground mb-2">Condiciones evaluadas:</div>
+                  {decision.strategyConditions.map((condition, i) => (
+                    <div key={i} className="flex items-start gap-2">
+                      <CheckCircle className="w-4 h-4 text-green-500 mt-0.5 shrink-0" />
+                      <span>{condition}</span>
+                    </div>
+                  ))}
+                  {decision.entryReason && (
+                    <div className="mt-3 p-2 bg-muted rounded-lg">
+                      <div className="text-xs text-muted-foreground mb-1">Razón de entrada:</div>
+                      <span className="text-sm">{decision.entryReason}</span>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
@@ -639,7 +779,7 @@ function AIAnalysisTab() {
                       1H - Estrategia
                     </CardTitle>
                     <Badge variant="session">
-                      {decision.timeframes['1H'].strategy === 'new_york' ? 'Nueva York' : 'Smart Money'}
+                      {currentStrategy?.name}
                     </Badge>
                   </div>
                 </CardHeader>
@@ -659,6 +799,12 @@ function AIAnalysisTab() {
                       }
                       <span>Retroceso</span>
                     </div>
+                  </div>
+                  <div className="pt-2">
+                    <span className="text-xs text-muted-foreground">Patrones: </span>
+                    {decision.patterns.map((p, i) => (
+                      <Badge key={i} variant="outline" className="mr-1 text-xs">{p}</Badge>
+                    ))}
                   </div>
                   <div className="flex items-center gap-2 pt-2">
                     <Progress value={decision.timeframes['1H'].confidence} className="h-2 flex-1" />
