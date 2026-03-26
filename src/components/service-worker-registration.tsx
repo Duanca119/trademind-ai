@@ -1,64 +1,83 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { Button } from '@/components/ui/button'
+import { RefreshCw } from 'lucide-react'
 
 export function ServiceWorkerRegistration() {
-  const [showUpdateToast, setShowUpdateToast] = useState(false)
+  const [showUpdate, setShowUpdate] = useState(false)
+  const [registration, setRegistration] = useState<ServiceWorkerRegistration | null>(null)
 
   useEffect(() => {
-    if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
-      navigator.serviceWorker
-        .register('/sw.js')
-        .then((registration) => {
-          console.log('Service Worker registered:', registration.scope)
-          
-          // Check for updates every 30 minutes
-          setInterval(() => {
-            registration.update()
-          }, 30 * 60 * 1000)
+    if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return
 
-          // Handle updates
-          registration.addEventListener('updatefound', () => {
-            const newWorker = registration.installing
-            if (newWorker) {
-              newWorker.addEventListener('statechange', () => {
-                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                  // New version available - auto-update
-                  console.log('🔄 New version available! Updating...')
-                  
-                  // Tell the new service worker to activate immediately
-                  newWorker.postMessage('skipWaiting')
-                  
-                  // Show update notification
-                  setShowUpdateToast(true)
-                  
-                  // Auto-refresh after 1 second
-                  setTimeout(() => {
-                    window.location.reload()
-                  }, 1000)
-                }
-              })
-            }
-          })
+    const registerSW = async () => {
+      try {
+        const reg = await navigator.serviceWorker.register('/sw.js', {
+          scope: '/',
         })
-        .catch((error) => {
-          console.error('Service Worker registration failed:', error)
-        })
+        
+        setRegistration(reg)
+        console.log('SW registered:', reg.scope)
 
-      // Handle controller change (when new SW activates)
-      navigator.serviceWorker.addEventListener('controllerchange', () => {
-        console.log('✅ App updated to new version!')
-      })
+        // Check for updates immediately
+        reg.update()
+
+        // Check for updates every 30 seconds
+        setInterval(() => {
+          reg.update()
+        }, 30000)
+
+        // Listen for new versions
+        reg.addEventListener('updatefound', () => {
+          const newWorker = reg.installing
+          if (newWorker) {
+            newWorker.addEventListener('statechange', () => {
+              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                console.log('New version available!')
+                setShowUpdate(true)
+              }
+            })
+          }
+        })
+      } catch (error) {
+        console.error('SW registration failed:', error)
+      }
     }
+
+    registerSW()
+
+    // Listen for controller changes
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      console.log('Controller changed - reloading')
+      window.location.reload()
+    })
   }, [])
 
-  // Show update toast
-  if (showUpdateToast) {
+  const handleUpdate = () => {
+    if (registration?.waiting) {
+      // Tell the waiting worker to activate
+      registration.waiting.postMessage({ type: 'SKIP_WAITING' })
+    } else {
+      window.location.reload()
+    }
+  }
+
+  if (showUpdate) {
     return (
-      <div className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-80 bg-primary text-primary-foreground p-4 rounded-lg shadow-lg z-50 animate-in slide-in-from-bottom">
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
-          <span className="font-medium">Actualizando app...</span>
+      <div className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-80 bg-primary text-primary-foreground p-4 rounded-lg shadow-lg z-50">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <RefreshCw className="w-4 h-4 animate-spin" />
+            <span className="font-medium">Nueva versión disponible</span>
+          </div>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={handleUpdate}
+          >
+            Actualizar
+          </Button>
         </div>
       </div>
     )

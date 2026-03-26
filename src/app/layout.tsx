@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import { ServiceWorkerRegistration } from "@/components/service-worker-registration";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -42,6 +43,7 @@ export default function RootLayout({
         <div className="min-h-screen bg-background">
           {children}
         </div>
+        <ServiceWorkerRegistration />
       </body>
     </html>
   );

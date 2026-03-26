@@ -1,4 +1,4 @@
-const CACHE_NAME = 'trademind-ai-v4';
+const CACHE_NAME = 'trademind-ai-v5';
 const STATIC_ASSETS = [
   '/',
   '/manifest.json',
@@ -6,81 +6,43 @@ const STATIC_ASSETS = [
   '/icons/icon-512x512.png',
 ];
 
-// Install - cache static assets
+// Install - skip waiting immediately
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => cache.addAll(STATIC_ASSETS))
-      .then(() => self.skipWaiting()) // Force activation
+      .then(() => self.skipWaiting())
   );
 });
 
-// Fetch - Network first, fallback to cache (better for real-time data)
+// Fetch - Network first for everything (always get latest)
 self.addEventListener('fetch', (event) => {
-  const { request } = event;
-  const url = new URL(request.url);
-
-  // For API calls - always fetch from network first (real-time data)
-  if (url.pathname.startsWith('/api/')) {
-    event.respondWith(
-      fetch(request)
-        .then((response) => {
-          // Cache successful API responses for offline fallback
-          if (response.ok) {
-            const responseClone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(request, responseClone);
-            });
-          }
-          return response;
-        })
-        .catch(() => {
-          // Fallback to cache if offline
-          return caches.match(request);
-        })
-    );
-    return;
-  }
-
-  // For static assets - cache first, then network
   event.respondWith(
-    caches.match(request)
-      .then((cachedResponse) => {
-        if (cachedResponse) {
-          // Return cached, but also update cache in background
-          fetch(request).then((networkResponse) => {
-            if (networkResponse.ok) {
-              caches.open(CACHE_NAME).then((cache) => {
-                cache.put(request, networkResponse);
-              });
-            }
-          }).catch(() => {});
-          return cachedResponse;
-        }
-        
-        // Not in cache, fetch from network
-        return fetch(request).then((response) => {
-          if (!response.ok) return response;
-          
-          const responseClone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(request, responseClone);
-          });
-          return response;
+    fetch(event.request)
+      .then((response) => {
+        // Clone and cache the response
+        const responseClone = response.clone();
+        caches.open(CACHE_NAME).then((cache) => {
+          cache.put(event.request, responseClone);
         });
+        return response;
+      })
+      .catch(() => {
+        // Fallback to cache if offline
+        return caches.match(event.request);
       })
   );
 });
 
-// Activate - clean old caches and claim clients
+// Activate - clean ALL old caches immediately
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cacheName) => {
-          // Delete old caches
+          // Delete ALL caches except current
           if (cacheName !== CACHE_NAME) {
-            console.log('Deleting old cache:', cacheName);
+            console.log('Deleting cache:', cacheName);
             return caches.delete(cacheName);
           }
         })
@@ -92,9 +54,9 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Handle messages from the app
+// Listen for skip waiting message
 self.addEventListener('message', (event) => {
-  if (event.data === 'skipWaiting') {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
   }
 });
