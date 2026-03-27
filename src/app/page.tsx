@@ -275,100 +275,486 @@ const getTVSymbol = (symbol: string) => {
   return `FX:${base}${quote}`;
 };
 
-// Generate decision based on selected strategy
-const generateDecision = (symbol: string, strategyId: 'ema50' | 'candlestick' | 'smart_money', currentPrice?: number) => {
-  const rand = Math.random();
-  const action = rand > 0.6 ? 'BUY' : rand > 0.3 ? 'SELL' : 'WAIT';
-  const direction = action === 'BUY' ? 'bullish' : action === 'SELL' ? 'bearish' : 'ranging';
-  const probability = Math.floor(Math.random() * 40) + 50;
+// ============================================
+// NUEVA LÓGICA DE ANÁLISIS JERÁRQUICO
+// ============================================
+
+interface TimeframeAnalysis {
+  direction: 'bullish' | 'bearish' | 'sideways';
+  trend: string;
+  ema50Position: 'above' | 'below' | 'neutral';
+  ema50Distance: 'close' | 'normal' | 'extended';
+  priceAction: string;
+  keyLevels: { support: number; resistance: number };
+  confidence: number;
+  validPattern?: boolean;
+  patternType?: string;
+  entryConfirmed?: boolean;
+  rejectionType?: string;
+  reasons?: string[];
+}
+
+interface HierarchicalAnalysis {
+  canOperate: boolean;
+  blockReason?: string;
+  direction: 'bullish' | 'bearish' | 'sideways';
+  timeframe1D: TimeframeAnalysis;
+  timeframe1H: TimeframeAnalysis;
+  timeframe5M: TimeframeAnalysis;
+  emaConfirmation: boolean;
+  riskRewardValid: boolean;
+  riskReward: number;
+  activePattern?: string;
+}
+
+// Analizar temporalidad 1D (DIRECCIÓN PRINCIPAL)
+function analyze1D(price: number, atr: number): TimeframeAnalysis {
+  // Simular análisis de dirección principal
+  const directionRandom = Math.random();
+  let direction: 'bullish' | 'bearish' | 'sideways';
+  let trend: string;
+  let priceAction: string;
+  let confidence: number;
   
-  // Use real price if available, otherwise fallback
+  // 40% alcista, 40% bajista, 20% lateral
+  if (directionRandom < 0.4) {
+    direction = 'bullish';
+    trend = 'uptrend';
+    priceAction = 'Higher highs and higher lows';
+    confidence = 65 + Math.floor(Math.random() * 25);
+  } else if (directionRandom < 0.8) {
+    direction = 'bearish';
+    trend = 'downtrend';
+    priceAction = 'Lower highs and lower lows';
+    confidence = 65 + Math.floor(Math.random() * 25);
+  } else {
+    direction = 'sideways';
+    trend = 'sideways';
+    priceAction = 'Consolidation - Sin dirección clara';
+    confidence = 30 + Math.floor(Math.random() * 20);
+  }
+
+  // EMA 50 analysis
+  const emaDistance = Math.random();
+  let ema50Distance: 'close' | 'normal' | 'extended';
+  if (emaDistance < 0.3) {
+    ema50Distance = 'close';
+  } else if (emaDistance < 0.7) {
+    ema50Distance = 'normal';
+  } else {
+    ema50Distance = 'extended';
+  }
+
+  return {
+    direction,
+    trend,
+    ema50Position: direction === 'bullish' ? 'above' : direction === 'bearish' ? 'below' : 'neutral',
+    ema50Distance,
+    priceAction,
+    keyLevels: { 
+      support: price - atr * 3, 
+      resistance: price + atr * 3 
+    },
+    confidence
+  };
+}
+
+// Analizar temporalidad 1H (FILTRO DE OPORTUNIDAD)
+function analyze1H(price: number, atr: number, direction1D: 'bullish' | 'bearish' | 'sideways'): TimeframeAnalysis {
+  // Solo evaluar si 1D tiene dirección clara
+  if (direction1D === 'sideways') {
+    return {
+      direction: 'sideways',
+      trend: 'undefined',
+      ema50Position: 'neutral',
+      ema50Distance: 'normal',
+      priceAction: 'Sin análisis - 1D lateral',
+      keyLevels: { support: price, resistance: price },
+      confidence: 0,
+      validPattern: false
+    };
+  }
+
+  // Verificar si contradice a 1D
+  const contradicts = Math.random() < 0.15; // 15% probabilidad de contradicción
+  
+  if (contradicts) {
+    return {
+      direction: direction1D === 'bullish' ? 'bearish' : 'bullish',
+      trend: 'contradicts_1d',
+      ema50Position: 'neutral',
+      ema50Distance: 'normal',
+      priceAction: 'Contradice dirección principal',
+      keyLevels: { support: price, resistance: price },
+      confidence: 20,
+      validPattern: false
+    };
+  }
+
+  // Determinar patrón único activo
+  const patternRandom = Math.random();
+  let patternType: string;
+  let validPattern: boolean;
+  
+  if (patternRandom < 0.35) {
+    // Impulso + Pullback + Continuación
+    patternType = 'Impulso + Pullback + Continuación';
+    validPattern = true;
+  } else if (patternRandom < 0.55) {
+    // Smart Money
+    patternType = 'Smart Money (Manipulación + Reversa)';
+    validPattern = true;
+  } else if (patternRandom < 0.70) {
+    // Múltiples patrones - INVALID
+    patternType = 'Múltiples patrones detectados';
+    validPattern = false;
+  } else {
+    // Sin patrón claro
+    patternType = 'Sin patrón claro';
+    validPattern = false;
+  }
+
+  const emaDistance = Math.random();
+  let ema50Distance: 'close' | 'normal' | 'extended';
+  if (emaDistance < 0.35) {
+    ema50Distance = 'close';
+  } else if (emaDistance < 0.75) {
+    ema50Distance = 'normal';
+  } else {
+    ema50Distance = 'extended';
+  }
+
+  return {
+    direction: direction1D,
+    trend: direction1D === 'bullish' ? 'uptrend' : 'downtrend',
+    ema50Position: direction1D === 'bullish' ? 'above' : 'below',
+    ema50Distance,
+    priceAction: validPattern ? `Patrón válido: ${patternType}` : patternType,
+    keyLevels: { 
+      support: price - atr * 2, 
+      resistance: price + atr * 2 
+    },
+    confidence: validPattern ? 55 + Math.floor(Math.random() * 30) : 20 + Math.floor(Math.random() * 20),
+    validPattern,
+    patternType
+  };
+}
+
+// Analizar temporalidad 5M (EJECUCIÓN)
+function analyze5M(price: number, atr: number, direction1D: 'bullish' | 'bearish' | 'sideways', validPattern1H: boolean): TimeframeAnalysis {
+  // Si 1D es lateral o 1H no tiene patrón válido, no hay entrada
+  if (direction1D === 'sideways' || !validPattern1H) {
+    return {
+      direction: 'sideways',
+      trend: 'no_entry',
+      ema50Position: 'neutral',
+      ema50Distance: 'normal',
+      priceAction: 'Sin entrada - Condiciones no cumplidas',
+      keyLevels: { support: price, resistance: price },
+      confidence: 0,
+      entryConfirmed: false,
+      reasons: []
+    };
+  }
+
+  // Buscar confirmación de entrada
+  const confirmationRandom = Math.random();
+  let entryConfirmed: boolean;
+  let rejectionType: string;
+  let reasons: string[];
+
+  if (confirmationRandom < 0.4) {
+    // Confirmación clara
+    entryConfirmed = true;
+    rejectionType = direction1D === 'bullish' ? 'Rechazo en soporte con vela alcista' : 'Rechazo en resistencia con vela bajista';
+    reasons = [
+      'Vela confirmatoria presente',
+      'Micro estructura a favor',
+      direction1D === 'bullish' ? 'Rechazo evidente en soporte' : 'Rechazo evidente en resistencia'
+    ];
+  } else if (confirmationRandom < 0.6) {
+    // Confirmación parcial
+    entryConfirmed = true;
+    rejectionType = 'Confirmación parcial';
+    reasons = [
+      'Estructura a favor',
+      'Esperando más confirmación'
+    ];
+  } else {
+    // Sin confirmación
+    entryConfirmed = false;
+    rejectionType = 'Sin confirmación clara';
+    reasons = [];
+  }
+
+  return {
+    direction: direction1D,
+    trend: direction1D === 'bullish' ? 'uptrend' : 'downtrend',
+    ema50Position: direction1D === 'bullish' ? 'above' : 'below',
+    ema50Distance: 'close',
+    priceAction: entryConfirmed ? 'Entrada confirmada' : 'Sin confirmación',
+    keyLevels: { 
+      support: price - atr, 
+      resistance: price + atr 
+    },
+    confidence: entryConfirmed ? 60 + Math.floor(Math.random() * 25) : 25 + Math.floor(Math.random() * 15),
+    entryConfirmed,
+    rejectionType,
+    reasons
+  };
+}
+
+// Calcular Riesgo/Beneficio
+function calculateRiskReward(price: number, atr: number, direction: 'bullish' | 'bearish'): { 
+  valid: boolean; 
+  rr: number; 
+  entry: number; 
+  stopLoss: number; 
+  takeProfit: number;
+} {
+  // SL = 1.5 * ATR, TP = 3 * ATR = RR 1:2
+  const stopLoss = direction === 'bullish' ? price - atr * 1.5 : price + atr * 1.5;
+  const takeProfit = direction === 'bullish' ? price + atr * 3 : price - atr * 3;
+  
+  // Calcular RR real
+  const risk = Math.abs(price - stopLoss);
+  const reward = Math.abs(takeProfit - price);
+  const rr = reward / risk;
+  
+  // Mínimo 1:2
+  const valid = rr >= 2;
+  
+  return { valid, rr, entry: price, stopLoss, takeProfit };
+}
+
+// ANÁLISIS JERÁRQUICO PRINCIPAL
+function performHierarchicalAnalysis(symbol: string, currentPrice: number): HierarchicalAnalysis {
+  const atr = symbol.includes('BTC') ? 500 : symbol.includes('ETH') ? 25 : 0.003;
+  const price = currentPrice || generatePrice(symbol).price;
+
+  // PASO 1: Analizar 1D (DIRECCIÓN PRINCIPAL)
+  const timeframe1D = analyze1D(price, atr);
+  
+  // Si 1D está lateral → NO OPERAR
+  if (timeframe1D.direction === 'sideways') {
+    return {
+      canOperate: false,
+      blockReason: '1D LATERAL - Sin dirección clara',
+      direction: 'sideways',
+      timeframe1D,
+      timeframe1H: analyze1H(price, atr, 'sideways'),
+      timeframe5M: analyze5M(price, atr, 'sideways', false),
+      emaConfirmation: false,
+      riskRewardValid: false,
+      riskReward: 0
+    };
+  }
+
+  // PASO 2: Analizar 1H (FILTRO DE OPORTUNIDAD)
+  const timeframe1H = analyze1H(price, atr, timeframe1D.direction);
+  
+  // Si 1H no tiene patrón válido → NO OPERAR
+  if (!timeframe1H.validPattern) {
+    return {
+      canOperate: false,
+      blockReason: timeframe1H.trend === 'contradicts_1d' 
+        ? '1H CONTRADICE a 1D' 
+        : '1H SIN PATRÓN VÁLIDO',
+      direction: timeframe1D.direction,
+      timeframe1D,
+      timeframe1H,
+      timeframe5M: analyze5M(price, atr, timeframe1D.direction, false),
+      emaConfirmation: false,
+      riskRewardValid: false,
+      riskReward: 0
+    };
+  }
+
+  // PASO 3: Verificar EMA 50
+  const emaConfirmation = timeframe1D.ema50Distance !== 'extended' && 
+                          timeframe1H.ema50Distance !== 'extended';
+  
+  if (!emaConfirmation) {
+    return {
+      canOperate: false,
+      blockReason: 'EMA 50 - Precio muy alejado (sobreextensión)',
+      direction: timeframe1D.direction,
+      timeframe1D,
+      timeframe1H,
+      timeframe5M: analyze5M(price, atr, timeframe1D.direction, true),
+      emaConfirmation: false,
+      riskRewardValid: false,
+      riskReward: 0,
+      activePattern: timeframe1H.patternType
+    };
+  }
+
+  // PASO 4: Analizar 5M (EJECUCIÓN)
+  const timeframe5M = analyze5M(price, atr, timeframe1D.direction, true);
+  
+  // Si 5M no confirma → NO OPERAR
+  if (!timeframe5M.entryConfirmed) {
+    return {
+      canOperate: false,
+      blockReason: '5M SIN CONFIRMACIÓN de entrada',
+      direction: timeframe1D.direction,
+      timeframe1D,
+      timeframe1H,
+      timeframe5M,
+      emaConfirmation: true,
+      riskRewardValid: false,
+      riskReward: 0,
+      activePattern: timeframe1H.patternType
+    };
+  }
+
+  // PASO 5: Verificar Riesgo/Beneficio
+  const { valid: rrValid, rr, entry, stopLoss, takeProfit } = calculateRiskReward(price, atr, timeframe1D.direction);
+  
+  if (!rrValid) {
+    return {
+      canOperate: false,
+      blockReason: `RR ${rr.toFixed(1)}:1 - No cumple mínimo 1:2`,
+      direction: timeframe1D.direction,
+      timeframe1D,
+      timeframe1H,
+      timeframe5M,
+      emaConfirmation: true,
+      riskRewardValid: false,
+      riskReward: rr,
+      activePattern: timeframe1H.patternType
+    };
+  }
+
+  // TODAS LAS CONDICIONES CUMPLIDAS → OPERAR
+  return {
+    canOperate: true,
+    direction: timeframe1D.direction,
+    timeframe1D,
+    timeframe1H,
+    timeframe5M,
+    emaConfirmation: true,
+    riskRewardValid: true,
+    riskReward: rr,
+    activePattern: timeframe1H.patternType
+  };
+}
+
+// Generate decision based on hierarchical analysis
+const generateDecision = (symbol: string, strategyId: 'ema50' | 'candlestick' | 'smart_money', currentPrice?: number) => {
   const priceData = generatePrice(symbol);
   const price = currentPrice || priceData.price;
   const atr = symbol.includes('BTC') ? 500 : symbol.includes('ETH') ? 25 : 0.003;
   
-  // Strategy-specific analysis
-  const strategyAnalysis = {
-    ema50: {
-      name: 'EMA 50',
-      analysis: 'Análisis de Media Móvil Exponencial',
-      conditions: [
-        { label: 'Precio vs EMA 50', value: direction === 'bullish' ? 'Por encima' : 'Por debajo', status: true },
-        { label: 'Tendencia EMA', value: direction === 'bullish' ? 'Alcista (EMA apunta arriba)' : 'Bajista (EMA apunta abajo)', status: true },
-        { label: 'Distancia de EMA', value: 'Retroceso hacia zona de valor', status: Math.random() > 0.3 },
-        { label: 'Ángulo de EMA', value: Math.random() > 0.5 ? 'Fuerte (pendiente pronunciada)' : 'Moderado', status: true },
-      ],
-      entryReason: direction === 'bullish' 
-        ? 'Precio hace retroceso hacia EMA 50 en tendencia alcista. Buscar rebote con velas confirmatorias.'
-        : 'Precio hace retroceso hacia EMA 50 en tendencia bajista. Buscar rechazo con velas confirmatorias.',
-      patterns: ['Retroceso a EMA', 'Rebote desde valor', 'Continuación de tendencia']
-    },
-    candlestick: {
-      name: 'Velas Japonesas',
-      analysis: 'Análisis de Patrones de Velas',
-      conditions: [
-        { label: 'Patrón detectado', value: direction === 'bullish' ? 'Bullish Engulfing / Martillo' : 'Bearish Engulfing / Estrella', status: true },
-        { label: 'Ubicación', value: 'En zona clave de soporte/resistencia', status: Math.random() > 0.3 },
-        { label: 'Volumen', value: 'Volumen superior al promedio', status: Math.random() > 0.4 },
-        { label: 'Confirmación', value: 'Vela siguiente confirma el patrón', status: Math.random() > 0.5 },
-      ],
-      entryReason: direction === 'bullish'
-        ? 'Patrón alcista detectado en zona de soporte. Vela confirmatoria presente. Entrar en apertura siguiente.'
-        : 'Patrón bajista detectado en zona de resistencia. Vela confirmatoria presente. Entrar en apertura siguiente.',
-      patterns: ['Engulfing', 'Martillo/Estrella', 'Doji en zona clave']
-    },
-    smart_money: {
-      name: 'Smart Money',
-      analysis: 'Análisis de Flujo Institucional',
-      conditions: [
-        { label: 'Order Block', value: 'OB identificado en zona actual', status: true },
-        { label: 'Liquidez', value: 'Barrido de stops reciente', status: Math.random() > 0.3 },
-        { label: 'Manipulación', value: 'Falso breakout detectado', status: Math.random() > 0.4 },
-        { label: 'Inducement', value: 'Trampa institucional completada', status: Math.random() > 0.5 },
-      ],
-      entryReason: direction === 'bullish'
-        ? 'Barrido de liquidez en zona de demanda institucional. Order Block alcista activo. Entrar tras mitigación.'
-        : 'Barrido de liquidez en zona de oferta institucional. Order Block bajista activo. Entrar tras mitigación.',
-      patterns: ['Order Block', 'Liquidity Sweep', 'Inducement Clear', 'Mitigation']
-    }
+  // Ejecutar análisis jerárquico
+  const analysis = performHierarchicalAnalysis(symbol, price);
+  
+  // Determinar acción basada en el análisis
+  const action = analysis.canOperate && analysis.direction !== 'sideways' 
+    ? (analysis.direction === 'bullish' ? 'BUY' : 'SELL') 
+    : 'WAIT';
+  
+  // Calcular probabilidad basada en confianza de cada nivel
+  const probability = analysis.canOperate 
+    ? Math.min(
+        analysis.timeframe1D.confidence,
+        analysis.timeframe1H.confidence,
+        analysis.timeframe5M.confidence
+      )
+    : 20 + Math.floor(Math.random() * 20);
+
+  // Strategy-specific conditions display
+  const getStrategyConditions = () => {
+    const baseConditions = [
+      { 
+        label: '1D Dirección', 
+        value: analysis.timeframe1D.direction === 'bullish' ? 'Alcista ✓' : 
+               analysis.timeframe1D.direction === 'bearish' ? 'Bajista ✓' : 'Lateral ✗', 
+        status: analysis.timeframe1D.direction !== 'sideways' 
+      },
+      { 
+        label: '1H Patrón', 
+        value: analysis.timeframe1H.validPattern ? `${analysis.activePattern} ✓` : 'Sin patrón válido ✗', 
+        status: analysis.timeframe1H.validPattern || false 
+      },
+      { 
+        label: 'EMA 50', 
+        value: analysis.emaConfirmation ? 'Confirma tendencia ✓' : 'Sobreextensión ✗', 
+        status: analysis.emaConfirmation 
+      },
+      { 
+        label: '5M Entrada', 
+        value: analysis.timeframe5M.entryConfirmed ? 'Confirmada ✓' : 'Sin confirmar ✗', 
+        status: analysis.timeframe5M.entryConfirmed || false 
+      },
+      { 
+        label: 'Riesgo/Beneficio', 
+        value: analysis.riskRewardValid ? `${analysis.riskReward.toFixed(1)}:1 ✓` : 'No cumple 1:2 ✗', 
+        status: analysis.riskRewardValid 
+      },
+    ];
+    
+    return baseConditions;
   };
 
-  const selected = strategyAnalysis[strategyId];
+  // Strategy name mapping
+  const strategyNames = {
+    ema50: 'EMA 50',
+    candlestick: 'Velas Japonesas',
+    smart_money: 'Smart Money'
+  };
+
+  // Entry reason
+  let entryReason = '';
+  if (!analysis.canOperate) {
+    entryReason = `NO OPERAR: ${analysis.blockReason}`;
+  } else {
+    entryReason = analysis.direction === 'bullish'
+      ? `ENTRADA LARGA: ${analysis.activePattern}. Confirmado en 5M. RR ${analysis.riskReward.toFixed(1)}:1`
+      : `ENTRADA CORTA: ${analysis.activePattern}. Confirmado en 5M. RR ${analysis.riskReward.toFixed(1)}:1`;
+  }
+
+  // Calculate levels
+  const { entry, stopLoss, takeProfit } = analysis.canOperate 
+    ? calculateRiskReward(price, atr, analysis.direction)
+    : { entry: undefined, stopLoss: undefined, takeProfit: undefined };
   
   return {
     action,
-    direction,
+    direction: analysis.direction,
     probability,
-    entry: action !== 'WAIT' ? price : undefined,
-    stopLoss: action === 'BUY' ? price - atr * 2 : action === 'SELL' ? price + atr * 2 : undefined,
-    takeProfit: action === 'BUY' ? price + atr * 4 : action === 'SELL' ? price - atr * 4 : undefined,
-    riskReward: 2,
-    strategyName: selected.name,
-    strategyAnalysis: selected.analysis,
-    strategyConditions: selected.conditions,
-    entryReason: selected.entryReason,
-    patterns: selected.patterns,
+    entry: action !== 'WAIT' ? entry : undefined,
+    stopLoss,
+    takeProfit,
+    riskReward: analysis.riskReward || 0,
+    strategyName: strategyNames[strategyId],
+    strategyAnalysis: 'Análisis Jerárquico Multi-Temporalidad',
+    strategyConditions: getStrategyConditions(),
+    entryReason,
+    patterns: analysis.activePattern ? [analysis.activePattern] : [],
+    blockReason: analysis.blockReason,
+    canOperate: analysis.canOperate,
     timeframes: {
-      '1D': { 
-        direction, 
-        trend: direction === 'bullish' ? 'uptrend' : direction === 'bearish' ? 'downtrend' : 'sideways',
-        ema50Position: direction === 'bullish' ? 'above' : 'below',
-        priceAction: direction === 'bullish' ? 'Higher highs and higher lows' : 
-                     direction === 'bearish' ? 'Lower highs and lower lows' : 'Consolidation',
-        keyLevels: { support: price * 0.998, resistance: price * 1.002 },
-        confidence: Math.floor(Math.random() * 30) + 60
+      '1D': {
+        direction: analysis.timeframe1D.direction,
+        trend: analysis.timeframe1D.trend,
+        ema50Position: analysis.timeframe1D.ema50Position,
+        emaDistance: analysis.timeframe1D.ema50Distance,
+        priceAction: analysis.timeframe1D.priceAction,
+        keyLevels: analysis.timeframe1D.keyLevels,
+        confidence: analysis.timeframe1D.confidence
       },
       '1H': {
-        impulse: Math.random() > 0.4,
-        pullback: Math.random() > 0.4,
-        volume: 'high',
-        confidence: Math.floor(Math.random() * 30) + 50
+        direction: analysis.timeframe1H.direction,
+        validPattern: analysis.timeframe1H.validPattern,
+        patternType: analysis.timeframe1H.patternType,
+        confidence: analysis.timeframe1H.confidence
       },
       '5M': {
-        confirmed: action !== 'WAIT',
-        reasons: action !== 'WAIT' ? ['Señal confirmada', 'Condiciones cumplidas', 'Timing correcto'] : [],
-        riskReward: 2,
-        confidence: Math.floor(Math.random() * 30) + 40
+        confirmed: analysis.timeframe5M.entryConfirmed || false,
+        reasons: analysis.timeframe5M.reasons || [],
+        rejectionType: analysis.timeframe5M.rejectionType,
+        confidence: analysis.timeframe5M.confidence
       }
     }
   };
