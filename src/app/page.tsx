@@ -1186,20 +1186,54 @@ function AssetQuickInfo({ asset, price }: { asset: typeof ASSETS[0]; price?: Pri
 
   return (
     <div className="space-y-2">
+      {/* Header con acción y estado */}
       <div className="flex items-center justify-between">
         <span className="font-bold">{asset.symbol}</span>
         {decision && (
-          <Badge variant={decision.action === 'BUY' ? 'bull' : decision.action === 'SELL' ? 'bear' : 'neutral'}>
-            {decision.action}
-          </Badge>
+          <div className="flex items-center gap-2">
+            {decision.canOperate === false && decision.blockReason && (
+              <span className="text-xs text-red-400 truncate max-w-32">
+                {decision.blockReason}
+              </span>
+            )}
+            <Badge variant={decision.action === 'BUY' ? 'bull' : decision.action === 'SELL' ? 'bear' : 'neutral'}>
+              {decision.action}
+            </Badge>
+          </div>
         )}
       </div>
+      
+      {/* Probabilidad */}
       {decision && (
         <div className="flex items-center gap-2">
           <Progress value={decision.probability} className="h-2 flex-1" />
           <span className="text-xs text-muted-foreground">{decision.probability}%</span>
         </div>
       )}
+      
+      {/* Condiciones jerárquicas en miniatura */}
+      {decision && decision.strategyConditions && (
+        <div className="grid grid-cols-5 gap-1 text-xs">
+          {decision.strategyConditions.slice(0, 5).map((cond, idx) => (
+            <div 
+              key={idx}
+              className={cn(
+                "flex flex-col items-center p-1 rounded",
+                cond.status ? "bg-green-500/20" : "bg-red-500/20"
+              )}
+            >
+              <span className={cn("font-medium", cond.status ? "text-green-400" : "text-red-400")}>
+                {cond.status ? "✓" : "✗"}
+              </span>
+              <span className="text-[10px] text-muted-foreground text-center truncate w-full">
+                {cond.label.replace('1D ', '').replace('1H ', '').replace('EMA ', '').replace('5M ', '').replace('Riesgo/', 'RR')}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+      
+      {/* Precios */}
       {price && (
         <div className="grid grid-cols-3 gap-2 text-xs">
           <div>
