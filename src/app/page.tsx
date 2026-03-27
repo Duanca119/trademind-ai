@@ -2090,14 +2090,49 @@ export default function TradeMindAI() {
   const [mounted, setMounted] = useState(false);
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [updating, setUpdating] = useState(false);
+  const [currentVersion, setCurrentVersion] = useState<string>('');
+  const [initialVersion, setInitialVersion] = useState<string>('');
+
+  // Check server version for deployments
+  const checkServerVersion = async () => {
+    try {
+      const response = await fetch('/api/version?t=' + Date.now());
+      const data = await response.json();
+      
+      if (!initialVersion) {
+        setInitialVersion(data.deployedAt);
+        setCurrentVersion(data.deployedAt);
+        return;
+      }
+      
+      // If server has newer version, trigger update
+      if (data.deployedAt !== initialVersion) {
+        console.log('[App] New deployment detected!', data.deployedAt, 'vs', initialVersion);
+        setUpdateAvailable(true);
+        setCurrentVersion(data.deployedAt);
+      }
+    } catch (error) {
+      console.error('[App] Version check error:', error);
+    }
+  };
 
   useEffect(() => {
     setMounted(true);
 
-    // Check for Service Worker updates
+    // Check server version immediately
+    checkServerVersion();
+
+    // Check for Service Worker updates - AGGRESSIVE UPDATE STRATEGY
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.ready.then((registration) => {
-        // Check for updates
+      
+      // Register service worker with update check
+      navigator.serviceWorker.register('/sw.js', { 
+        scope: '/',
+        updateViaCache: 'none' // Always check for SW updates
+      }).then((registration) => {
+        console.log('[App] SW registered:', registration.scope);
+        
+        // Force update check immediately
         registration.update();
         
         // Listen for new versions
@@ -2105,7 +2140,9 @@ export default function TradeMindAI() {
           const newWorker = registration.installing;
           if (newWorker) {
             newWorker.addEventListener('statechange', () => {
+              console.log('[App] SW state:', newWorker.state);
               if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                console.log('[App] New SW version available!');
                 setUpdateAvailable(true);
               }
             });
@@ -2113,35 +2150,82 @@ export default function TradeMindAI() {
         });
       });
 
-      // Check for updates every 30 seconds
-      setInterval(() => {
+      // Listen for messages from service worker
+      navigator.serviceWorker.addEventListener('message', (event) => {
+        if (event.data && event.data.type === 'SW_UPDATED') {
+          console.log('[App] SW updated message received:', event.data.version);
+          setUpdateAvailable(true);
+          setCurrentVersion(event.data.version);
+        }
+      });
+
+      // Check for controller change (new SW activated)
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        console.log('[App] Controller changed - new SW active');
+        window.location.reload();
+      });
+
+      // Check for updates frequently (every 30 seconds)
+      const updateInterval = setInterval(() => {
         navigator.serviceWorker.getRegistration().then((reg) => {
-          if (reg) reg.update();
+          if (reg) {
+            reg.update();
+          }
         });
+        // Also check server version
+        checkServerVersion();
       }, 30000);
+
+      // Initial cache clear for fresh start
+      if ('caches' in window) {
+        caches.keys().then((cacheNames) => {
+          const oldCaches = cacheNames.filter(name => 
+            name.startsWith('trademind-ai-') && cacheNames.length > 1
+          );
+          if (oldCaches.length > 0) {
+            console.log('[App] Found old caches, clearing...');
+            oldCaches.forEach(name => caches.delete(name));
+          }
+        });
+      }
+
+      return () => clearInterval(updateInterval);
     }
   }, []);
 
-  // Force update
+  // Force update - COMPLETE REFRESH
   const handleUpdate = async () => {
     setUpdating(true);
+    console.log('[App] Force update initiated...');
     
-    // Clear all caches
-    if ('caches' in window) {
-      const cacheNames = await caches.keys();
-      await Promise.all(cacheNames.map(name => caches.delete(name)));
-    }
-    
-    // Unregister old service worker
-    if ('serviceWorker' in navigator) {
-      const registrations = await navigator.serviceWorker.getRegistrations();
-      for (const reg of registrations) {
-        await reg.unregister();
+    try {
+      // 1. Clear ALL caches
+      if ('caches' in window) {
+        const cacheNames = await caches.keys();
+        console.log('[App] Clearing caches:', cacheNames);
+        await Promise.all(cacheNames.map(name => caches.delete(name)));
       }
+      
+      // 2. Unregister ALL service workers
+      if ('serviceWorker' in navigator) {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        console.log('[App] Unregistering SWs:', registrations.length);
+        for (const reg of registrations) {
+          await reg.unregister();
+        }
+      }
+      
+      // 3. Clear localStorage and sessionStorage for fresh state
+      localStorage.clear();
+      sessionStorage.clear();
+      
+      // 4. Hard reload (bypass cache)
+      console.log('[App] Reloading...');
+      window.location.href = window.location.href.split('?')[0] + '?t=' + Date.now();
+    } catch (error) {
+      console.error('[App] Update error:', error);
+      window.location.reload();
     }
-    
-    // Reload page
-    window.location.reload();
   };
 
   const tabs = [
@@ -2178,7 +2262,7 @@ export default function TradeMindAI() {
               variant="default" 
               onClick={handleUpdate}
               disabled={updating}
-              className="text-xs"
+              className="text-xs bg-green-600 hover:bg-green-700 animate-pulse"
             >
               {updating ? (
                 <>
@@ -2188,7 +2272,7 @@ export default function TradeMindAI() {
               ) : (
                 <>
                   <RefreshCw className="w-3 h-3 mr-1" />
-                  Actualizar
+                  ¡Nueva versión!
                 </>
               )}
             </Button>
