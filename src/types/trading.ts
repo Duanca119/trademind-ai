@@ -270,3 +270,65 @@ export function isCryptoAsset(symbol: string): boolean {
 
 // AssetConfig type for backwards compatibility
 export type AssetConfig = Asset
+
+// Trend type for scanner
+export type Trend = 'bullish' | 'bearish' | 'sideways'
+
+// Scanner status type
+export type ScannerStatus = 'ready' | 'preparing' | 'avoid'
+
+// Forex pair analysis for scanner
+export interface ForexPairAnalysis {
+  pairId: string
+  pairName: string
+  icon: string
+  price: number
+  priceChange: number
+  priceChangePercent: number
+  trend1D: Trend
+  trend1H: Trend
+  trend15M: Trend
+  rsi1D: number
+  rsi1H: number
+  rsi15M: number
+  alignment: boolean
+  confirmation: boolean
+  volatility: 'low' | 'medium' | 'high'
+  status: ScannerStatus
+  score: number
+  signal: 'BUY' | 'SELL' | 'NONE'
+  confidence: number
+  lastUpdate: Date
+}
+
+// Scanner ranking
+export interface ScannerRanking {
+  topPicks: ForexPairAnalysis[]
+  readyToTrade: ForexPairAnalysis[]
+  preparing: ForexPairAnalysis[]
+  avoid: ForexPairAnalysis[]
+  totalScanned: number
+  readyCount: number
+  preparingCount: number
+  avoidCount: number
+  lastScanTime: Date
+}
+
+// Trading zones type
+export interface TradingZones {
+  direction: 'buy' | 'sell' | 'neutral'
+  entryZone: {
+    high: number
+    low: number
+    mid: number
+  }
+  stopLoss: number
+  takeProfit1: number
+  takeProfit2: number
+  riskRewardRatio: number
+  message: 'entrada_optima' | 'esperar_retroceso' | 'zona_no_segura' | 'sin_tendencia'
+  messageText: string
+  support: number
+  resistance: number
+  atr: number
+}
