@@ -143,14 +143,15 @@
   --sidebar-ring: #3B82F6;
 }
 
-@layer base {
-  * {
-    @apply border-border outline-ring/50;
-  }
-  body {
-    @apply bg-background text-foreground;
-    background-color: #0F172A;
-  }
+/* Base styles */
+* {
+  border-color: var(--border);
+  outline-color: var(--ring);
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
 }
 
 /* Safe area for mobile devices */

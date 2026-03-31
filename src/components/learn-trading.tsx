@@ -883,12 +883,14 @@ export default function LearnTradingScreen() {
         setSyncStatus('synced')
       } else {
         // Fallback to localStorage if API fails
-        const saved = localStorage.getItem('trademind-learn-progress')
-        if (saved) {
-          try {
-            setProgress(JSON.parse(saved))
-          } catch (e) {
-            console.error('Error loading progress from localStorage')
+        if (typeof window !== 'undefined') {
+          const saved = typeof window !== "undefined" && localStorage.getItem('trademind-learn-progress')
+          if (saved) {
+            try {
+              setProgress(JSON.parse(saved))
+            } catch (e) {
+              console.error('Error loading progress from localStorage')
+            }
           }
         }
         setSyncStatus('error')
@@ -896,12 +898,14 @@ export default function LearnTradingScreen() {
     } catch (error) {
       console.error('Error fetching progress:', error)
       // Fallback to localStorage
-      const saved = localStorage.getItem('trademind-learn-progress')
-      if (saved) {
-        try {
-          setProgress(JSON.parse(saved))
-        } catch (e) {
-          console.error('Error loading progress from localStorage')
+      if (typeof window !== 'undefined') {
+        const saved = localStorage.getItem('trademind-learn-progress')
+        if (saved) {
+          try {
+            setProgress(JSON.parse(saved))
+          } catch (e) {
+            console.error('Error loading progress from localStorage')
+          }
         }
       }
       setSyncStatus('error')
@@ -919,7 +923,7 @@ export default function LearnTradingScreen() {
     setProgress(newProgress)
     
     // Always save to localStorage as backup
-    localStorage.setItem('trademind-learn-progress', JSON.stringify(newProgress))
+    if (typeof window !== "undefined") localStorage.setItem('trademind-learn-progress', JSON.stringify(newProgress))
     
     // Try to sync with API
     try {
@@ -973,7 +977,7 @@ export default function LearnTradingScreen() {
         completedLessons: newCompletedLessons
       }
       setProgress(newProgress)
-      localStorage.setItem('trademind-learn-progress', JSON.stringify(newProgress))
+      if (typeof window !== "undefined") localStorage.setItem('trademind-learn-progress', JSON.stringify(newProgress))
       
       // Sync with API
       setSyncStatus('syncing')
@@ -1011,7 +1015,7 @@ export default function LearnTradingScreen() {
     
     // Update local state immediately
     setProgress(newProgress)
-    localStorage.setItem('trademind-learn-progress', JSON.stringify(newProgress))
+    if (typeof window !== "undefined") localStorage.setItem('trademind-learn-progress', JSON.stringify(newProgress))
     
     // Sync with API
     try {

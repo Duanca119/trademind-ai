@@ -179,3 +179,94 @@ export interface AppState {
   loading: boolean;
   error: string | null;
 }
+
+// Forex pairs for scanner
+export const FOREX_PAIRS = [
+  // Majors
+  { id: 'EURUSD', name: 'EUR/USD', icon: '💶' },
+  { id: 'GBPUSD', name: 'GBP/USD', icon: '💷' },
+  { id: 'USDJPY', name: 'USD/JPY', icon: '💴' },
+  { id: 'USDCHF', name: 'USD/CHF', icon: '🇨🇭' },
+  { id: 'AUDUSD', name: 'AUD/USD', icon: '🇦🇺' },
+  { id: 'USDCAD', name: 'USD/CAD', icon: '🍁' },
+  { id: 'NZDUSD', name: 'NZD/USD', icon: '🇳🇿' },
+  
+  // Crosses - European
+  { id: 'EURGBP', name: 'EUR/GBP', icon: '💶' },
+  { id: 'EURJPY', name: 'EUR/JPY', icon: '💶' },
+  { id: 'GBPJPY', name: 'GBP/JPY', icon: '💷' },
+  
+  // Crosses - JPY
+  { id: 'AUDJPY', name: 'AUD/JPY', icon: '🇦🇺' },
+  { id: 'NZDJPY', name: 'NZD/JPY', icon: '🇳🇿' },
+  { id: 'CADJPY', name: 'CAD/JPY', icon: '🍁' },
+  { id: 'CHFJPY', name: 'CHF/JPY', icon: '🇨🇭' },
+  
+  // Crosses - Other
+  { id: 'EURAUD', name: 'EUR/AUD', icon: '💶' },
+  { id: 'EURNZD', name: 'EUR/NZD', icon: '💶' },
+  { id: 'GBPAUD', name: 'GBP/AUD', icon: '💷' },
+  { id: 'GBPCAD', name: 'GBP/CAD', icon: '💷' },
+  { id: 'AUDCAD', name: 'AUD/CAD', icon: '🇦🇺' },
+  { id: 'NZDCAD', name: 'NZD/CAD', icon: '🇳🇿' },
+  
+  // Commodities
+  { id: 'XAUUSD', name: 'XAU/USD', icon: '🥇' },
+]
+
+// ASSETS constant for backwards compatibility
+export const ASSETS: Asset[] = [
+  // Major Pairs
+  { symbol: 'EUR/USD', name: 'Euro / US Dollar', type: 'forex', category: 'major' },
+  { symbol: 'GBP/USD', name: 'British Pound / US Dollar', type: 'forex', category: 'major' },
+  { symbol: 'USD/JPY', name: 'US Dollar / Japanese Yen', type: 'forex', category: 'major' },
+  { symbol: 'USD/CHF', name: 'US Dollar / Swiss Franc', type: 'forex', category: 'major' },
+  { symbol: 'AUD/USD', name: 'Australian Dollar / US Dollar', type: 'forex', category: 'major' },
+  { symbol: 'USD/CAD', name: 'US Dollar / Canadian Dollar', type: 'forex', category: 'major' },
+  { symbol: 'NZD/USD', name: 'New Zealand Dollar / US Dollar', type: 'forex', category: 'major' },
+  { symbol: 'EUR/GBP', name: 'Euro / British Pound', type: 'forex', category: 'major' },
+  // Minor Pairs
+  { symbol: 'EUR/JPY', name: 'Euro / Japanese Yen', type: 'forex', category: 'minor' },
+  { symbol: 'GBP/JPY', name: 'British Pound / Japanese Yen', type: 'forex', category: 'minor' },
+  { symbol: 'EUR/AUD', name: 'Euro / Australian Dollar', type: 'forex', category: 'minor' },
+  { symbol: 'EUR/CAD', name: 'Euro / Canadian Dollar', type: 'forex', category: 'minor' },
+  { symbol: 'EUR/CHF', name: 'Euro / Swiss Franc', type: 'forex', category: 'minor' },
+  { symbol: 'GBP/CHF', name: 'British Pound / Swiss Franc', type: 'forex', category: 'minor' },
+  { symbol: 'AUD/JPY', name: 'Australian Dollar / Japanese Yen', type: 'forex', category: 'minor' },
+  { symbol: 'CAD/JPY', name: 'Canadian Dollar / Japanese Yen', type: 'forex', category: 'minor' },
+  // Exotic Pairs
+  { symbol: 'USD/MXN', name: 'US Dollar / Mexican Peso', type: 'forex', category: 'exotic' },
+  { symbol: 'USD/ZAR', name: 'US Dollar / South African Rand', type: 'forex', category: 'exotic' },
+  { symbol: 'USD/TRY', name: 'US Dollar / Turkish Lira', type: 'forex', category: 'exotic' },
+  { symbol: 'USD/SGD', name: 'US Dollar / Singapore Dollar', type: 'forex', category: 'exotic' },
+  // Crypto
+  { symbol: 'BTC/USD', name: 'Bitcoin / US Dollar', type: 'crypto', category: 'crypto' },
+  { symbol: 'ETH/USD', name: 'Ethereum / US Dollar', type: 'crypto', category: 'crypto' },
+]
+
+// Helper functions
+export function getTradingViewSymbol(symbol: string): string {
+  const [base, quote] = symbol.split('/')
+  if (base === 'BTC') return 'BINANCE:BTCUSDT'
+  if (base === 'ETH') return 'BINANCE:ETHUSDT'
+  return `FX:${base}${quote}`
+}
+
+export function getAssetById(id: string): Asset | undefined {
+  return ASSETS.find(a => a.symbol === id || a.symbol.replace('/', '') === id)
+}
+
+export function formatAssetPrice(price: number, symbol?: string): string {
+  if (!price || isNaN(price)) return '0.00'
+  if (symbol?.includes('JPY')) return price.toFixed(3)
+  if (symbol?.includes('BTC')) return price.toFixed(2)
+  if (symbol?.includes('ETH')) return price.toFixed(2)
+  return price.toFixed(5)
+}
+
+export function isCryptoAsset(symbol: string): boolean {
+  return symbol.includes('BTC') || symbol.includes('ETH')
+}
+
+// AssetConfig type for backwards compatibility
+export type AssetConfig = Asset
