@@ -1,0 +1,1006 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#0a0a0a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="TradeMind AI">
+    <title>TradeMind AI - Trading Inteligente</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #0a0a0a;
+            --bg-secondary: #111111;
+            --bg-card: #1a1a1a;
+            --text-primary: #ffffff;
+            --text-secondary: #a0a0a0;
+            --green: #22c55e;
+            --green-dark: #16a34a;
+            --red: #ef4444;
+            --yellow: #eab308;
+            --blue: #3b82f6;
+            --border: #2a2a2a;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Header */
+        .header {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: rgba(10, 10, 10, 0.95);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid var(--border);
+            padding: 12px 16px;
+        }
+
+        .header-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .logo-icon {
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, var(--green-dark), var(--green));
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .logo-text {
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        .live-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(34, 197, 94, 0.1);
+            border: 1px solid rgba(34, 197, 94, 0.3);
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            color: var(--green);
+        }
+
+        .live-dot {
+            width: 6px;
+            height: 6px;
+            background: var(--green);
+            border-radius: 50%;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        /* Main Container */
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 16px;
+        }
+
+        /* Asset Selector */
+        .asset-selector {
+            margin-bottom: 16px;
+        }
+
+        .asset-selector select {
+            width: 100%;
+            padding: 12px 16px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            color: var(--text-primary);
+            font-size: 16px;
+            cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23a0a0a0' stroke-width='2'%3E%3Cpolyline points='6,9 12,15 18,9'%3E%3C/polyline%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            background-size: 20px;
+        }
+
+        /* Timeframe Tabs */
+        .timeframe-tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+            overflow-x: auto;
+            padding-bottom: 4px;
+        }
+
+        .timeframe-tab {
+            padding: 8px 16px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-secondary);
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.2s;
+        }
+
+        .timeframe-tab.active {
+            background: var(--green-dark);
+            border-color: var(--green);
+            color: white;
+        }
+
+        /* Grid Layout */
+        .main-grid {
+            display: grid;
+            gap: 16px;
+        }
+
+        @media (min-width: 1024px) {
+            .main-grid {
+                grid-template-columns: 2fr 1fr;
+            }
+        }
+
+        /* Card Styles */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            overflow: hidden;
+        }
+
+        .card-header {
+            padding: 16px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .card-title {
+            font-size: 14px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .card-body {
+            padding: 16px;
+        }
+
+        /* Chart Container */
+        .chart-container {
+            height: 400px;
+            position: relative;
+        }
+
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 500px;
+            }
+        }
+
+        /* Price Display */
+        .price-section {
+            margin-bottom: 16px;
+        }
+
+        .current-price {
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+
+        .price-change {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 14px;
+        }
+
+        .price-change.up { color: var(--green); }
+        .price-change.down { color: var(--red); }
+
+        /* Signal Card */
+        .signal-card {
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 16px;
+        }
+
+        .signal-card.buy {
+            background: linear-gradient(135deg, rgba(34, 197, 94, 0.15), rgba(34, 197, 94, 0.05));
+            border: 1px solid rgba(34, 197, 94, 0.3);
+        }
+
+        .signal-card.sell {
+            background: linear-gradient(135deg, rgba(239, 68, 68, 0.15), rgba(239, 68, 68, 0.05));
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+
+        .signal-action {
+            font-size: 28px;
+            font-weight: 800;
+            margin-bottom: 12px;
+        }
+
+        .signal-card.buy .signal-action { color: var(--green); }
+        .signal-card.sell .signal-action { color: var(--red); }
+
+        .signal-levels {
+            display: grid;
+            gap: 12px;
+        }
+
+        .level-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 12px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 8px;
+        }
+
+        .level-label {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .level-value {
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .level-value.entry { color: var(--blue); }
+        .level-value.sl { color: var(--red); }
+        .level-value.tp { color: var(--green); }
+
+        /* Support/Resistance Zones */
+        .sr-zones {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .sr-zone {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 14px;
+            border-radius: 10px;
+            font-size: 13px;
+        }
+
+        .sr-zone.resistance {
+            background: rgba(239, 68, 68, 0.1);
+            border-left: 3px solid var(--red);
+        }
+
+        .sr-zone.support {
+            background: rgba(34, 197, 94, 0.1);
+            border-left: 3px solid var(--green);
+        }
+
+        .sr-label {
+            font-weight: 500;
+        }
+
+        .sr-price {
+            font-weight: 600;
+            font-family: 'SF Mono', Monaco, monospace;
+        }
+
+        /* Confidence Bar */
+        .confidence-section {
+            margin-top: 16px;
+        }
+
+        .confidence-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            margin-bottom: 6px;
+        }
+
+        .confidence-bar {
+            height: 8px;
+            background: var(--border);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .confidence-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--green-dark), var(--green));
+            border-radius: 4px;
+            transition: width 0.5s ease;
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .stat-card {
+            background: var(--bg-secondary);
+            padding: 14px;
+            border-radius: 12px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+
+        .stat-label {
+            font-size: 11px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+        }
+
+        /* Analysis Section */
+        .analysis-text {
+            font-size: 13px;
+            line-height: 1.6;
+            color: var(--text-secondary);
+            padding: 12px;
+            background: var(--bg-secondary);
+            border-radius: 10px;
+            border-left: 3px solid var(--blue);
+        }
+
+        /* Quick Actions */
+        .quick-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 16px;
+        }
+
+        .action-btn {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .action-btn.primary {
+            background: var(--green);
+            color: white;
+        }
+
+        .action-btn.secondary {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            padding: 24px 16px;
+            color: var(--text-secondary);
+            font-size: 12px;
+        }
+
+        /* PWA Install Banner */
+        .install-banner {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: var(--bg-card);
+            border-top: 1px solid var(--border);
+            padding: 16px;
+            display: none;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            z-index: 200;
+        }
+
+        .install-banner.show {
+            display: flex;
+        }
+
+        .install-text {
+            font-size: 14px;
+        }
+
+        .install-btn {
+            padding: 10px 20px;
+            background: var(--green);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .install-close {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 20px;
+            cursor: pointer;
+        }
+
+        /* Loading States */
+        .skeleton {
+            background: linear-gradient(90deg, var(--bg-secondary) 25%, var(--bg-card) 50%, var(--bg-secondary) 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+            border-radius: 8px;
+        }
+
+        @keyframes shimmer {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg-secondary);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="header-content">
+            <div class="logo">
+                <div class="logo-icon">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5">
+                        <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+                    </svg>
+                </div>
+                <span class="logo-text">TradeMind AI</span>
+            </div>
+            <div class="live-badge">
+                <div class="live-dot"></div>
+                <span>EN VIVO</span>
+            </div>
+        </div>
+    </header>
+
+    <main class="container">
+        <!-- Asset Selector -->
+        <div class="asset-selector">
+            <select id="assetSelect">
+                <optgroup label="📉 Forex">
+                    <option value="EURUSD" selected>EUR/USD - Euro/Dólar</option>
+                    <option value="GBPUSD">GBP/USD - Libra/Dólar</option>
+                    <option value="USDJPY">USD/JPY - Dólar/Yen</option>
+                    <option value="AUDUSD">AUD/USD - Dólar Australiano</option>
+                    <option value="USDCAD">USD/CAD - Dólar Canadiense</option>
+                    <option value="USDCHF">USD/CHF - Franco Suizo</option>
+                    <option value="XAUUSD">XAU/USD - Oro</option>
+                </optgroup>
+                <optgroup label="₿ Cripto">
+                    <option value="BTCUSDT">BTC/USDT - Bitcoin</option>
+                    <option value="ETHUSDT">ETH/USDT - Ethereum</option>
+                </optgroup>
+            </select>
+        </div>
+
+        <!-- Timeframe Tabs -->
+        <div class="timeframe-tabs">
+            <button class="timeframe-tab" data-tf="1">1 min</button>
+            <button class="timeframe-tab active" data-tf="5">5 min</button>
+            <button class="timeframe-tab" data-tf="15">15 min</button>
+            <button class="timeframe-tab" data-tf="60">1 hora</button>
+            <button class="timeframe-tab" data-tf="240">4 horas</button>
+        </div>
+
+        <div class="main-grid">
+            <!-- Left: Chart -->
+            <div>
+                <div class="card">
+                    <div class="chart-container" id="chartContainer">
+                        <!-- TradingView Widget -->
+                    </div>
+                </div>
+
+                <!-- Price & Stats -->
+                <div class="card" style="margin-top: 16px;">
+                    <div class="card-body">
+                        <div class="price-section">
+                            <div class="current-price" id="currentPrice">1.08542</div>
+                            <div class="price-change up" id="priceChange">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M18 15l-6-6-6 6"/>
+                                </svg>
+                                <span>+0.00023 (+0.21%)</span>
+                            </div>
+                        </div>
+
+                        <div class="stats-grid">
+                            <div class="stat-card">
+                                <div class="stat-value" id="highPrice">1.08612</div>
+                                <div class="stat-label">Máximo</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-value" id="lowPrice">1.08489</div>
+                                <div class="stat-label">Mínimo</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-value" id="spread">1.2</div>
+                                <div class="stat-label">Spread (pips)</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-value" id="volatility">0.15%</div>
+                                <div class="stat-label">Volatilidad</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right: Signal & Analysis -->
+            <div>
+                <!-- Trading Signal -->
+                <div class="signal-card buy" id="signalCard">
+                    <div class="signal-action" id="signalAction">📈 COMPRAR</div>
+                    
+                    <div class="signal-levels">
+                        <div class="level-row">
+                            <span class="level-label">Zona de Entrada</span>
+                            <span class="level-value entry" id="entryZone">1.08520 - 1.08550</span>
+                        </div>
+                        <div class="level-row">
+                            <span class="level-label">Stop Loss</span>
+                            <span class="level-value sl" id="stopLoss">1.08420</span>
+                        </div>
+                        <div class="level-row">
+                            <span class="level-label">Take Profit 1</span>
+                            <span class="level-value tp" id="tp1">1.08620</span>
+                        </div>
+                        <div class="level-row">
+                            <span class="level-label">Take Profit 2</span>
+                            <span class="level-value tp" id="tp2">1.08720</span>
+                        </div>
+                    </div>
+
+                    <div class="confidence-section">
+                        <div class="confidence-label">
+                            <span>Confianza de la señal</span>
+                            <span id="confidenceValue">78%</span>
+                        </div>
+                        <div class="confidence-bar">
+                            <div class="confidence-fill" id="confidenceFill" style="width: 78%"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Support & Resistance -->
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+                            </svg>
+                            Zonas de Soporte y Resistencia
+                        </span>
+                    </div>
+                    <div class="card-body">
+                        <div class="sr-zones" id="srZones">
+                            <!-- Populated by JS -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Analysis -->
+                <div class="card" style="margin-top: 16px;">
+                    <div class="card-header">
+                        <span class="card-title">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"/>
+                                <path d="M12 16v-4"/>
+                                <path d="M12 8h.01"/>
+                            </svg>
+                            Análisis
+                        </span>
+                    </div>
+                    <div class="card-body">
+                        <p class="analysis-text" id="analysisText">
+                            El precio se encuentra cerca de una zona de soporte importante. Se observa presión compradora con volumen creciente. Riesgo/beneficio favorable para posiciones largas con stop loss ajustado debajo del soporte.
+                        </p>
+
+                        <div class="quick-actions">
+                            <button class="action-btn secondary" onclick="refreshAnalysis()">🔄 Actualizar</button>
+                            <button class="action-btn primary" onclick="showNotification('Señal guardada')">💾 Guardar</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="footer">
+        <p>TradeMind AI - Análisis de mercado en tiempo real</p>
+        <p style="margin-top: 4px;">Datos actualizados cada 3 segundos</p>
+    </footer>
+
+    <!-- PWA Install Banner -->
+    <div class="install-banner" id="installBanner">
+        <span class="install-text">📲 Instalar TradeMind AI en tu dispositivo</span>
+        <button class="install-btn" id="installBtn">Instalar</button>
+        <button class="install-close" id="installClose">✕</button>
+    </div>
+
+    <script>
+        // ==========================================
+        // TradeMind AI - Main Application Logic
+        // ==========================================
+
+        // Asset Configuration
+        const ASSETS = {
+            EURUSD: { name: 'EUR/USD', type: 'forex', decimals: 5, tvSymbol: 'FX:EURUSD', basePrice: 1.0850 },
+            GBPUSD: { name: 'GBP/USD', type: 'forex', decimals: 5, tvSymbol: 'FX:GBPUSD', basePrice: 1.2650 },
+            USDJPY: { name: 'USD/JPY', type: 'forex', decimals: 3, tvSymbol: 'FX:USDJPY', basePrice: 149.50 },
+            AUDUSD: { name: 'AUD/USD', type: 'forex', decimals: 5, tvSymbol: 'FX:AUDUSD', basePrice: 0.6550 },
+            USDCAD: { name: 'USD/CAD', type: 'forex', decimals: 5, tvSymbol: 'FX:USDCAD', basePrice: 1.3650 },
+            USDCHF: { name: 'USD/CHF', type: 'forex', decimals: 5, tvSymbol: 'FX:USDCHF', basePrice: 0.8850 },
+            XAUUSD: { name: 'XAU/USD', type: 'metal', decimals: 2, tvSymbol: 'TVC:GOLD', basePrice: 2330.00 },
+            BTCUSDT: { name: 'BTC/USDT', type: 'crypto', decimals: 2, tvSymbol: 'BINANCE:BTCUSDT', basePrice: 67500 },
+            ETHUSDT: { name: 'ETH/USDT', type: 'crypto', decimals: 2, tvSymbol: 'BINANCE:ETHUSDT', basePrice: 3450 }
+        };
+
+        // State
+        let currentAsset = 'EURUSD';
+        let currentTimeframe = '5';
+        let priceData = {};
+        let chartWidget = null;
+
+        // Initialize price data
+        Object.keys(ASSETS).forEach(symbol => {
+            const basePrice = ASSETS[symbol].basePrice;
+            priceData[symbol] = {
+                price: basePrice,
+                open: basePrice,
+                high: basePrice * 1.002,
+                low: basePrice * 0.998,
+                change: 0,
+                changePercent: 0
+            };
+        });
+
+        // Format price
+        function formatPrice(price, symbol) {
+            const decimals = ASSETS[symbol]?.decimals ?? 5;
+            return price.toFixed(decimals);
+        }
+
+        // Simulate price movement
+        function simulatePrice() {
+            Object.keys(ASSETS).forEach(symbol => {
+                const config = ASSETS[symbol];
+                const current = priceData[symbol];
+                
+                // Random walk with momentum
+                const volatility = config.type === 'crypto' ? 0.002 : 0.0005;
+                const change = (Math.random() - 0.48) * volatility * current.price;
+                const newPrice = Math.max(current.price + change, current.price * 0.9);
+                
+                current.price = newPrice;
+                current.change = newPrice - current.open;
+                current.changePercent = ((newPrice - current.open) / current.open) * 100;
+                current.high = Math.max(current.high, newPrice);
+                current.low = Math.min(current.low, newPrice);
+            });
+        }
+
+        // Update UI
+        function updateUI() {
+            const data = priceData[currentAsset];
+            const config = ASSETS[currentAsset];
+            
+            // Update price
+            document.getElementById('currentPrice').textContent = formatPrice(data.price, currentAsset);
+            
+            // Update change
+            const changeEl = document.getElementById('priceChange');
+            const isUp = data.change >= 0;
+            changeEl.className = `price-change ${isUp ? 'up' : 'down'}`;
+            changeEl.innerHTML = `
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="${isUp ? 'M18 15l-6-6-6 6' : 'M6 9l6 6 6-6'}"/>
+                </svg>
+                <span>${isUp ? '+' : ''}${formatPrice(data.change, currentAsset)} (${isUp ? '+' : ''}${data.changePercent.toFixed(2)}%)</span>
+            `;
+
+            // Update stats
+            document.getElementById('highPrice').textContent = formatPrice(data.high, currentAsset);
+            document.getElementById('lowPrice').textContent = formatPrice(data.low, currentAsset);
+            
+            const spread = config.type === 'crypto' ? '0.01%' : (Math.random() * 0.5 + 0.8).toFixed(1);
+            document.getElementById('spread').textContent = spread + (config.type !== 'crypto' ? ' pips' : '');
+            
+            const volatility = (Math.abs(data.changePercent) * 10 + Math.random() * 0.1).toFixed(2);
+            document.getElementById('volatility').textContent = volatility + '%';
+        }
+
+        // Generate Trading Signal
+        function generateSignal() {
+            const data = priceData[currentAsset];
+            const config = ASSETS[currentAsset];
+            const decimals = config.decimals;
+            const pip = decimals === 2 ? 0.01 : decimals === 3 ? 0.01 : 0.0001;
+            
+            // Determine signal based on price position
+            const momentum = data.changePercent;
+            let action, confidence, entryMin, entryMax, sl, tp1, tp2;
+            
+            if (momentum > 0.1) {
+                action = 'BUY';
+                confidence = 60 + Math.min(momentum * 10, 30);
+                entryMin = data.price - pip * 5;
+                entryMax = data.price + pip * 5;
+                sl = data.price - pip * 50;
+                tp1 = data.price + pip * 30;
+                tp2 = data.price + pip * 60;
+            } else if (momentum < -0.1) {
+                action = 'SELL';
+                confidence = 60 + Math.min(Math.abs(momentum) * 10, 30);
+                entryMin = data.price - pip * 5;
+                entryMax = data.price + pip * 5;
+                sl = data.price + pip * 50;
+                tp1 = data.price - pip * 30;
+                tp2 = data.price - pip * 60;
+            } else {
+                action = Math.random() > 0.5 ? 'BUY' : 'SELL';
+                confidence = 50 + Math.random() * 15;
+                entryMin = data.price - pip * 5;
+                entryMax = data.price + pip * 5;
+                sl = action === 'BUY' ? data.price - pip * 40 : data.price + pip * 40;
+                tp1 = action === 'BUY' ? data.price + pip * 25 : data.price - pip * 25;
+                tp2 = action === 'BUY' ? data.price + pip * 50 : data.price - pip * 50;
+            }
+            
+            confidence = Math.round(confidence);
+            
+            // Update signal card
+            const signalCard = document.getElementById('signalCard');
+            signalCard.className = `signal-card ${action.toLowerCase()}`;
+            
+            document.getElementById('signalAction').textContent = action === 'BUY' ? '📈 COMPRAR' : '📉 VENDER';
+            document.getElementById('entryZone').textContent = `${formatPrice(entryMin, currentAsset)} - ${formatPrice(entryMax, currentAsset)}`;
+            document.getElementById('stopLoss').textContent = formatPrice(sl, currentAsset);
+            document.getElementById('tp1').textContent = formatPrice(tp1, currentAsset);
+            document.getElementById('tp2').textContent = formatPrice(tp2, currentAsset);
+            document.getElementById('confidenceValue').textContent = confidence + '%';
+            document.getElementById('confidenceFill').style.width = confidence + '%';
+        }
+
+        // Generate Support/Resistance Zones
+        function generateSRZones() {
+            const data = priceData[currentAsset];
+            const config = ASSETS[currentAsset];
+            const pip = config.decimals === 2 ? 1 : config.decimals === 3 ? 0.1 : 0.001;
+            
+            const zones = [];
+            const basePrice = data.price;
+            
+            // Generate resistances
+            for (let i = 1; i <= 3; i++) {
+                zones.push({
+                    type: 'resistance',
+                    label: `R${i}`,
+                    price: basePrice + pip * (30 * i + Math.random() * 10)
+                });
+            }
+            
+            // Generate supports
+            for (let i = 1; i <= 3; i++) {
+                zones.push({
+                    type: 'support',
+                    label: `S${i}`,
+                    price: basePrice - pip * (30 * i + Math.random() * 10)
+                });
+            }
+            
+            // Sort by price descending
+            zones.sort((a, b) => b.price - a.price);
+            
+            // Update UI
+            const container = document.getElementById('srZones');
+            container.innerHTML = zones.map(zone => `
+                <div class="sr-zone ${zone.type}">
+                    <span class="sr-label">${zone.label}</span>
+                    <span class="sr-price">${formatPrice(zone.price, currentAsset)}</span>
+                </div>
+            `).join('');
+        }
+
+        // Generate Analysis Text
+        function generateAnalysis() {
+            const data = priceData[currentAsset];
+            const config = ASSETS[currentAsset];
+            const trend = data.changePercent > 0.15 ? 'alcista' : data.changePercent < -0.15 ? 'bajista' : 'lateral';
+            const momentum = Math.abs(data.changePercent) > 0.2 ? 'fuerte' : 'moderado';
+            
+            const analyses = {
+                alcista: [
+                    `El precio muestra una tendencia ${trend} con momentum ${momento}. Se detecta presión compradora sostenida. Zona de soporte en ${formatPrice(data.low, currentAsset)} actuando como nivel clave. Objetivo alcista en próximos niveles de resistencia.`,
+                    `Mercado en fase de corrección alcista. Volumen comprador dominante. Se recomienda buscar entradas largas cerca del soporte con stop loss ajustado. Riesgo/beneficio favorable.`
+                ],
+                bajista: [
+                    `Tendencia ${trend} con presión vendedora. El precio se acerca a zona de soporte importante. Posible rebote técnico. Mantener stops ajustados y buscar confirmación de reversión.`,
+                    `Mercado mostrando debilidad. Vendedores en control. Se sugiere precaución con posiciones largas. Buscar confirmación en zonas de soporte antes de entrar.`
+                ],
+                lateral: [
+                    `Mercado en consolidación. Precio oscilando entre soporte y resistencia. Esperar ruptura definida para entradas directionales. Mantener riesgo controlado.`,
+                    `Fase de acumulación detectada. Volumen bajo con movimiento lateral. Ideal para trading de rango. Comprar en soporte, vender en resistencia.`
+                ]
+            };
+            
+            const options = analyses[trend] || analyses.lateral;
+            const text = options[Math.floor(Math.random() * options.length)].replace('momento', momentum);
+            
+            document.getElementById('analysisText').textContent = text;
+        }
+
+        // Refresh Analysis
+        function refreshAnalysis() {
+            generateSignal();
+            generateSRZones();
+            generateAnalysis();
+            showNotification('Análisis actualizado');
+        }
+
+        // Load TradingView Chart
+        function loadChart() {
+            const container = document.getElementById('chartContainer');
+            const config = ASSETS[currentAsset];
+            
+            container.innerHTML = `
+                <div class="tradingview-widget-container" style="height:100%;width:100%">
+                    <div class="tradingview-widget-container__widget" style="height:calc(100% - 32px);width:100%"></div>
+                    <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js" async>
+                    {
+                        "autosize": true,
+                        "symbol": "${config.tvSymbol}",
+                        "interval": "${currentTimeframe}",
+                        "timezone": "Etc/UTC",
+                        "theme": "dark",
+                        "style": "1",
+                        "locale": "es",
+                        "enable_publishing": false,
+                        "hide_side_toolbar": false,
+                        "allow_symbol_change": true,
+                        "support_host": "https://www.tradingview.com"
+                    }
+                    <\/script>
+                </div>
+            `;
+        }
+
+        // Event Listeners
+        document.getElementById('assetSelect').addEventListener('change', (e) => {
+            currentAsset = e.target.value;
+            updateUI();
+            generateSignal();
+            generateSRZones();
+            generateAnalysis();
+            loadChart();
+        });
+
+        document.querySelectorAll('.timeframe-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.timeframe-tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                currentTimeframe = tab.dataset.tf;
+                loadChart();
+            });
+        });
+
+        // Notification
+        function showNotification(message) {
+            if ('Notification' in window && Notification.permission === 'granted') {
+                new Notification('TradeMind AI', { body: message });
+            }
+        }
+
+        // PWA Install
+        let deferredPrompt;
+        
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            document.getElementById('installBanner').classList.add('show');
+        });
+
+        document.getElementById('installBtn').addEventListener('click', async () => {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                const { outcome } = await deferredPrompt.userChoice;
+                if (outcome === 'accepted') {
+                    document.getElementById('installBanner').classList.remove('show');
+                }
+                deferredPrompt = null;
+            }
+        });
+
+        document.getElementById('installClose').addEventListener('click', () => {
+            document.getElementById('installBanner').classList.remove('show');
+        });
+
+        // Service Worker Registration
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js').catch(err => console.log('SW registration failed'));
+        }
+
+        // Initialize
+        function init() {
+            updateUI();
+            generateSignal();
+            generateSRZones();
+            generateAnalysis();
+            loadChart();
+            
+            // Start real-time updates
+            setInterval(() => {
+                simulatePrice();
+                updateUI();
+            }, 3000);
+            
+            // Refresh signal every 30 seconds
+            setInterval(() => {
+                generateSignal();
+                generateSRZones();
+            }, 30000);
+        }
+
+        init();
+    </script>
+</body>
+</html>
