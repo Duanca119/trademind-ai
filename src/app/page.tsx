@@ -48,7 +48,8 @@ import {
   TrendingDownIcon,
   Bell,
   BellRing,
-  X
+  X,
+  GraduationCap
 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -73,11 +74,12 @@ import { TradingZones, ASSETS, AssetConfig, getTradingViewSymbol, getAssetById, 
 // Import components
 import { SupportResistanceZones } from '@/components/support-resistance-zones'
 import { UnifiedDecisionCard, useTradingDecision } from '@/components/unified-decision-card'
+import LearnTradingScreen from '@/components/learn-trading'
 
 // Types
 type Trend = 'bullish' | 'bearish' | 'sideways'
 type SignalType = 'buy' | 'sell' | 'none'
-type TabId = 'dashboard' | 'scanner' | 'operation' | 'charts' | 'analysis' | 'risk' | 'history' | 'news'
+type TabId = 'dashboard' | 'scanner' | 'operation' | 'charts' | 'analysis' | 'risk' | 'history' | 'news' | 'learn'
 
 // ============================================
 // MARKET STATUS & SESSIONS
@@ -3750,6 +3752,7 @@ export default function TradeMindApp() {
     { id: 'analysis' as const, label: 'Análisis', icon: Brain },
     { id: 'risk' as const, label: 'Riesgo', icon: Shield },
     { id: 'history' as const, label: 'Historial', icon: History },
+    { id: 'learn' as const, label: 'Aprende', icon: GraduationCap },
   ]
   
   return (
@@ -3770,6 +3773,7 @@ export default function TradeMindApp() {
         {activeTab === 'risk' && <RiskScreen marketData={marketData} />}
         {activeTab === 'news' && <NewsScreen tradingAssistant={tradingAssistant} />}
         {activeTab === 'history' && <HistoryScreen />}
+        {activeTab === 'learn' && <LearnTradingScreen />}
       </div>
       
       {/* Bottom Navigation */}
