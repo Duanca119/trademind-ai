@@ -322,8 +322,7 @@ export function useMarketData(symbol: string = 'BTCUSDT') {
         ...prev,
         isLoading: true,
         error: null,
-        currentPrice: 0,
-        lastSymbolRef: symbol
+        currentPrice: 0
       }))
       lastSymbolRef.current = symbol
     }
