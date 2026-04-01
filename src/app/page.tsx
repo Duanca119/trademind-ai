@@ -1,2330 +1,1583 @@
-"use client";
+'use client'
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react'
 import { 
-  TrendingUp, 
-  TrendingDown, 
-  Activity, 
+  BookOpen, 
   BarChart3, 
   Target, 
+  Shield, 
   Brain,
-  Newspaper,
-  Clock,
-  CheckCircle,
-  XCircle,
-  ArrowUpRight,
-  ArrowDownRight,
-  Zap,
-  DollarSign,
-  CandlestickChart,
-  LineChart,
-  Layers,
+  ChevronRight,
+  ChevronLeft,
+  Check,
+  Trophy,
+  Star,
+  Lightbulb,
+  TrendingUp,
+  Activity,
   Globe,
-  Square,
-  Trash2,
-  Save,
-  X,
-  RefreshCw
-} from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
-} from '@/components/ui/select';
-
-// Constants
-const ASSETS = [
-  // Major Pairs
-  { symbol: 'EUR/USD', name: 'Euro / US Dollar', type: 'forex', category: 'major' },
-  { symbol: 'GBP/USD', name: 'British Pound / US Dollar', type: 'forex', category: 'major' },
-  { symbol: 'USD/JPY', name: 'US Dollar / Japanese Yen', type: 'forex', category: 'major' },
-  { symbol: 'USD/CHF', name: 'US Dollar / Swiss Franc', type: 'forex', category: 'major' },
-  { symbol: 'AUD/USD', name: 'Australian Dollar / US Dollar', type: 'forex', category: 'major' },
-  { symbol: 'USD/CAD', name: 'US Dollar / Canadian Dollar', type: 'forex', category: 'major' },
-  { symbol: 'NZD/USD', name: 'New Zealand Dollar / US Dollar', type: 'forex', category: 'major' },
-  { symbol: 'EUR/GBP', name: 'Euro / British Pound', type: 'forex', category: 'major' },
-  // Minor Pairs
-  { symbol: 'EUR/JPY', name: 'Euro / Japanese Yen', type: 'forex', category: 'minor' },
-  { symbol: 'GBP/JPY', name: 'British Pound / Japanese Yen', type: 'forex', category: 'minor' },
-  { symbol: 'EUR/AUD', name: 'Euro / Australian Dollar', type: 'forex', category: 'minor' },
-  { symbol: 'EUR/CAD', name: 'Euro / Canadian Dollar', type: 'forex', category: 'minor' },
-  { symbol: 'EUR/CHF', name: 'Euro / Swiss Franc', type: 'forex', category: 'minor' },
-  { symbol: 'GBP/CHF', name: 'British Pound / Swiss Franc', type: 'forex', category: 'minor' },
-  { symbol: 'AUD/JPY', name: 'Australian Dollar / Japanese Yen', type: 'forex', category: 'minor' },
-  { symbol: 'CAD/JPY', name: 'Canadian Dollar / Japanese Yen', type: 'forex', category: 'minor' },
-  // Exotic Pairs
-  { symbol: 'USD/MXN', name: 'US Dollar / Mexican Peso', type: 'forex', category: 'exotic' },
-  { symbol: 'USD/ZAR', name: 'US Dollar / South African Rand', type: 'forex', category: 'exotic' },
-  { symbol: 'USD/TRY', name: 'US Dollar / Turkish Lira', type: 'forex', category: 'exotic' },
-  { symbol: 'USD/SGD', name: 'US Dollar / Singapore Dollar', type: 'forex', category: 'exotic' },
-  // Crypto
-  { symbol: 'BTC/USD', name: 'Bitcoin / US Dollar', type: 'crypto', category: 'crypto' },
-  { symbol: 'ETH/USD', name: 'Ethereum / US Dollar', type: 'crypto', category: 'crypto' },
-];
-
-const CATEGORIES = [
-  { id: 'all', name: 'Todos' },
-  { id: 'major', name: 'Mayores' },
-  { id: 'minor', name: 'Menores' },
-  { id: 'exotic', name: 'Exóticos' },
-  { id: 'crypto', name: 'Cripto' },
-];
-
-// STRATEGIES - Analyze the market using indicators
-const STRATEGIES = [
-  { 
-    id: 'ema50', 
-    name: 'EMA 50', 
-    icon: LineChart,
-    description: 'Media Móvil Exponencial 50 períodos',
-    details: 'Identifica la tendencia principal y zonas de valor',
-    conditions: [
-      'Precio sobre EMA 50 = Tendencia alcista',
-      'Precio bajo EMA 50 = Tendencia bajista',
-      'Retroceso hacia EMA 50 = Zona de valor para entradas',
-      'Cruce de precio con EMA 50 = Cambio de tendencia'
-    ]
-  },
-  { 
-    id: 'candlestick', 
-    name: 'Velas Japonesas', 
-    icon: CandlestickChart,
-    description: 'Análisis de patrones de velas',
-    details: 'Identifica patrones de reversión y continuación',
-    conditions: [
-      'Patrones de reversión: Martillo, Estrella, Engulfing',
-      'Patrones de continuación: Doji, Ventanas',
-      'Confirmación con volumen',
-      'Ubicación en zonas clave'
-    ]
-  },
-  { 
-    id: 'smart_money', 
-    name: 'Smart Money', 
-    icon: Layers,
-    description: 'Order Blocks, Liquidez, Manipulación',
-    details: 'Sigue el flujo institucional del mercado',
-    conditions: [
-      'Identificación de Order Blocks',
-      'Barrido de liquidez (Stop Hunt)',
-      'Zonas de manipulación',
-      'Inducement y mitigación'
-    ]
-  },
-];
-
-// SESSIONS - Trading hours
-const SESSIONS = [
-  { 
-    id: 'new_york', 
-    name: 'Nueva York', 
-    shortName: 'NY',
-    open: 13, // 9 AM EST = 13 UTC
-    close: 22, // 5 PM EST = 22 UTC
-    color: 'bg-blue-500'
-  },
-  { 
-    id: 'london', 
-    name: 'Londres', 
-    shortName: 'LDN',
-    open: 8, // 8 AM GMT = 8 UTC
-    close: 17, // 5 PM GMT = 17 UTC
-    color: 'bg-green-500'
-  },
-  { 
-    id: 'asia', 
-    name: 'Asia', 
-    shortName: 'ASIA',
-    open: 23, // 9 PM JST previous day
-    close: 8, // 5 PM JST = 8 UTC
-    color: 'bg-yellow-500'
-  },
-];
-
-// Utility functions
-const formatPrice = (price: number, symbol?: string): string => {
-  if (!price || isNaN(price)) return "0.00";
-  if (symbol?.includes("JPY")) return price.toFixed(3);
-  if (symbol?.includes("BTC")) return price.toFixed(2);
-  if (symbol?.includes("ETH")) return price.toFixed(2);
-  return price.toFixed(5);
-};
-
-const formatPercent = (value: number): string => {
-  const sign = value >= 0 ? "+" : "";
-  return `${sign}${value.toFixed(2)}%`;
-};
-
-const getChangeClass = (value: number): string => {
-  if (value > 0) return "text-green-500";
-  if (value < 0) return "text-red-500";
-  return "text-yellow-500";
-};
-
-const cn = (...classes: (string | boolean | undefined)[]) => 
-  classes.filter(Boolean).join(' ');
-
-// Get active sessions
-const getActiveSessions = () => {
-  const now = new Date();
-  const utcHour = now.getUTCHours();
-  const utcDay = now.getUTCDay();
-  const isWeekend = utcDay === 0 || utcDay === 6;
-  
-  const activeSessions: typeof SESSIONS = [];
-  
-  SESSIONS.forEach(session => {
-    if (session.open < session.close) {
-      // Normal session (e.g., London 8-17)
-      if (utcHour >= session.open && utcHour < session.close) {
-        activeSessions.push(session);
-      }
-    } else {
-      // Overnight session (e.g., Asia 23-8)
-      if (utcHour >= session.open || utcHour < session.close) {
-        activeSessions.push(session);
-      }
-    }
-  });
-  
-  return {
-    sessions: activeSessions,
-    isWeekend,
-    forexOpen: !isWeekend,
-    cryptoOpen: true
-  };
-};
-
-// Price data interface
-interface PriceData {
-  price: number;
-  change: number;
-  changePercent: number;
-  high?: number;
-  low?: number;
-  open?: number;
-}
-
-// Fetch real prices from API
-const fetchPrices = async (): Promise<Map<string, PriceData>> => {
-  try {
-    const response = await fetch('/api/prices');
-    const data = await response.json();
-    
-    if (data.success && data.prices) {
-      const priceMap = new Map<string, PriceData>();
-      Object.entries(data.prices).forEach(([symbol, priceData]: [string, any]) => {
-        priceMap.set(symbol, priceData);
-      });
-      return priceMap;
-    }
-  } catch (error) {
-    console.error('Error fetching prices:', error);
-  }
-  
-  // Fallback to base prices if API fails (updated to current market rates)
-  const basePrices = new Map<string, PriceData>();
-  const basePriceValues: Record<string, number> = {
-    'EUR/USD': 1.1530, 'GBP/USD': 1.2620, 'USD/JPY': 150.25, 'USD/CHF': 0.8850,
-    'AUD/USD': 0.6530, 'USD/CAD': 1.3650, 'NZD/USD': 0.6130, 'EUR/GBP': 0.9140,
-    'EUR/JPY': 173.15, 'GBP/JPY': 189.55, 'EUR/AUD': 1.7660, 'EUR/CAD': 1.5740,
-    'EUR/CHF': 1.0200, 'GBP/CHF': 1.1165, 'AUD/JPY': 98.10, 'CAD/JPY': 110.05,
-    'USD/MXN': 17.05, 'USD/ZAR': 18.65, 'USD/TRY': 32.25, 'USD/SGD': 1.3420,
-    'BTC/USD': 87500, 'ETH/USD': 3450,
-  };
-  
-  Object.entries(basePriceValues).forEach(([symbol, price]) => {
-    basePrices.set(symbol, { price, change: 0, changePercent: 0 });
-  });
-  
-  return basePrices;
-};
-
-// Generate single price from current price data
-const generatePrice = (symbol: string, currentPrice?: PriceData) => {
-  if (currentPrice) {
-    return currentPrice;
-  }
-  
-  // Fallback base prices (updated to current market rates)
-  const basePrices: Record<string, number> = {
-    'EUR/USD': 1.1530, 'GBP/USD': 1.2620, 'USD/JPY': 150.25, 'USD/CHF': 0.8850,
-    'AUD/USD': 0.6530, 'USD/CAD': 1.3650, 'NZD/USD': 0.6130, 'EUR/GBP': 0.9140,
-    'EUR/JPY': 173.15, 'GBP/JPY': 189.55, 'EUR/AUD': 1.7660, 'EUR/CAD': 1.5740,
-    'EUR/CHF': 1.0200, 'GBP/CHF': 1.1165, 'AUD/JPY': 98.10, 'CAD/JPY': 110.05,
-    'USD/MXN': 17.05, 'USD/ZAR': 18.65, 'USD/TRY': 32.25, 'USD/SGD': 1.3420,
-    'BTC/USD': 87500, 'ETH/USD': 3450,
-  };
-  
-  const base = basePrices[symbol] || 1;
-  return { price: base, change: 0, changePercent: 0 };
-};
-
-// TradingView symbol
-const getTVSymbol = (symbol: string) => {
-  const [base, quote] = symbol.split('/');
-  if (base === 'BTC') return 'BINANCE:BTCUSDT';
-  if (base === 'ETH') return 'BINANCE:ETHUSDT';
-  return `FX:${base}${quote}`;
-};
+  RefreshCw,
+  ArrowUpCircle,
+  ArrowDownCircle,
+  Info,
+  Zap,
+  Loader2,
+  GraduationCap,
+  LineChart,
+  CandlestickChart,
+  Settings,
+  AlertTriangle,
+  DollarSign
+} from 'lucide-react'
 
 // ============================================
-// NUEVA LÓGICA DE ANÁLISIS JERÁRQUICO
+// TYPES
 // ============================================
 
-interface TimeframeAnalysis {
-  direction: 'bullish' | 'bearish' | 'sideways';
-  trend: string;
-  ema50Position: 'above' | 'below' | 'neutral';
-  ema50Distance: 'close' | 'normal' | 'extended';
-  priceAction: string;
-  keyLevels: { support: number; resistance: number };
-  confidence: number;
-  validPattern?: boolean;
-  patternType?: string;
-  entryConfirmed?: boolean;
-  rejectionType?: string;
-  reasons?: string[];
+interface Lesson {
+  id: string
+  title: string
+  content: string
+  example?: string
 }
 
-interface HierarchicalAnalysis {
-  canOperate: boolean;
-  blockReason?: string;
-  direction: 'bullish' | 'bearish' | 'sideways';
-  timeframe1D: TimeframeAnalysis;
-  timeframe1H: TimeframeAnalysis;
-  timeframe5M: TimeframeAnalysis;
-  emaConfirmation: boolean;
-  riskRewardValid: boolean;
-  riskReward: number;
-  activePattern?: string;
+interface Module {
+  id: string
+  title: string
+  description: string
+  icon: React.ElementType
+  color: string
+  bgColor: string
+  lessons: Lesson[]
+  quiz?: QuizQuestion[]
 }
 
-// Analizar temporalidad 1D (DIRECCIÓN PRINCIPAL)
-function analyze1D(price: number, atr: number): TimeframeAnalysis {
-  // Simular análisis de dirección principal
-  const directionRandom = Math.random();
-  let direction: 'bullish' | 'bearish' | 'sideways';
-  let trend: string;
-  let priceAction: string;
-  let confidence: number;
-  
-  // 40% alcista, 40% bajista, 20% lateral
-  if (directionRandom < 0.4) {
-    direction = 'bullish';
-    trend = 'uptrend';
-    priceAction = 'Higher highs and higher lows';
-    confidence = 65 + Math.floor(Math.random() * 25);
-  } else if (directionRandom < 0.8) {
-    direction = 'bearish';
-    trend = 'downtrend';
-    priceAction = 'Lower highs and lower lows';
-    confidence = 65 + Math.floor(Math.random() * 25);
-  } else {
-    direction = 'sideways';
-    trend = 'sideways';
-    priceAction = 'Consolidation - Sin dirección clara';
-    confidence = 30 + Math.floor(Math.random() * 20);
-  }
-
-  // EMA 50 analysis
-  const emaDistance = Math.random();
-  let ema50Distance: 'close' | 'normal' | 'extended';
-  if (emaDistance < 0.3) {
-    ema50Distance = 'close';
-  } else if (emaDistance < 0.7) {
-    ema50Distance = 'normal';
-  } else {
-    ema50Distance = 'extended';
-  }
-
-  return {
-    direction,
-    trend,
-    ema50Position: direction === 'bullish' ? 'above' : direction === 'bearish' ? 'below' : 'neutral',
-    ema50Distance,
-    priceAction,
-    keyLevels: { 
-      support: price - atr * 3, 
-      resistance: price + atr * 3 
-    },
-    confidence
-  };
+interface QuizQuestion {
+  id: string
+  question: string
+  options: string[]
+  correctAnswer: number
+  explanation: string
 }
 
-// Analizar temporalidad 1H (FILTRO DE OPORTUNIDAD)
-function analyze1H(price: number, atr: number, direction1D: 'bullish' | 'bearish' | 'sideways'): TimeframeAnalysis {
-  // Solo evaluar si 1D tiene dirección clara
-  if (direction1D === 'sideways') {
-    return {
-      direction: 'sideways',
-      trend: 'undefined',
-      ema50Position: 'neutral',
-      ema50Distance: 'normal',
-      priceAction: 'Sin análisis - 1D lateral',
-      keyLevels: { support: price, resistance: price },
-      confidence: 0,
-      validPattern: false
-    };
-  }
-
-  // Verificar si contradice a 1D
-  const contradicts = Math.random() < 0.15; // 15% probabilidad de contradicción
-  
-  if (contradicts) {
-    return {
-      direction: direction1D === 'bullish' ? 'bearish' : 'bullish',
-      trend: 'contradicts_1d',
-      ema50Position: 'neutral',
-      ema50Distance: 'normal',
-      priceAction: 'Contradice dirección principal',
-      keyLevels: { support: price, resistance: price },
-      confidence: 20,
-      validPattern: false
-    };
-  }
-
-  // Determinar patrón único activo
-  const patternRandom = Math.random();
-  let patternType: string;
-  let validPattern: boolean;
-  
-  if (patternRandom < 0.35) {
-    // Impulso + Pullback + Continuación
-    patternType = 'Impulso + Pullback + Continuación';
-    validPattern = true;
-  } else if (patternRandom < 0.55) {
-    // Smart Money
-    patternType = 'Smart Money (Manipulación + Reversa)';
-    validPattern = true;
-  } else if (patternRandom < 0.70) {
-    // Múltiples patrones - INVALID
-    patternType = 'Múltiples patrones detectados';
-    validPattern = false;
-  } else {
-    // Sin patrón claro
-    patternType = 'Sin patrón claro';
-    validPattern = false;
-  }
-
-  const emaDistance = Math.random();
-  let ema50Distance: 'close' | 'normal' | 'extended';
-  if (emaDistance < 0.35) {
-    ema50Distance = 'close';
-  } else if (emaDistance < 0.75) {
-    ema50Distance = 'normal';
-  } else {
-    ema50Distance = 'extended';
-  }
-
-  return {
-    direction: direction1D,
-    trend: direction1D === 'bullish' ? 'uptrend' : 'downtrend',
-    ema50Position: direction1D === 'bullish' ? 'above' : 'below',
-    ema50Distance,
-    priceAction: validPattern ? `Patrón válido: ${patternType}` : patternType,
-    keyLevels: { 
-      support: price - atr * 2, 
-      resistance: price + atr * 2 
-    },
-    confidence: validPattern ? 55 + Math.floor(Math.random() * 30) : 20 + Math.floor(Math.random() * 20),
-    validPattern,
-    patternType
-  };
+interface UserProgress {
+  completedLessons: string[]
+  completedModules: string[]
+  quizScores: Record<string, number>
 }
 
-// Analizar temporalidad 5M (EJECUCIÓN)
-function analyze5M(price: number, atr: number, direction1D: 'bullish' | 'bearish' | 'sideways', validPattern1H: boolean): TimeframeAnalysis {
-  // Si 1D es lateral o 1H no tiene patrón válido, no hay entrada
-  if (direction1D === 'sideways' || !validPattern1H) {
-    return {
-      direction: 'sideways',
-      trend: 'no_entry',
-      ema50Position: 'neutral',
-      ema50Distance: 'normal',
-      priceAction: 'Sin entrada - Condiciones no cumplidas',
-      keyLevels: { support: price, resistance: price },
-      confidence: 0,
-      entryConfirmed: false,
-      reasons: []
-    };
+// Market types
+interface MarketStatus {
+  sessions: {
+    asia: { name: string; isOpen: boolean }
+    london: { name: string; isOpen: boolean }
+    newYork: { name: string; isOpen: boolean }
   }
-
-  // Buscar confirmación de entrada
-  const confirmationRandom = Math.random();
-  let entryConfirmed: boolean;
-  let rejectionType: string;
-  let reasons: string[];
-
-  if (confirmationRandom < 0.4) {
-    // Confirmación clara
-    entryConfirmed = true;
-    rejectionType = direction1D === 'bullish' ? 'Rechazo en soporte con vela alcista' : 'Rechazo en resistencia con vela bajista';
-    reasons = [
-      'Vela confirmatoria presente',
-      'Micro estructura a favor',
-      direction1D === 'bullish' ? 'Rechazo evidente en soporte' : 'Rechazo evidente en resistencia'
-    ];
-  } else if (confirmationRandom < 0.6) {
-    // Confirmación parcial
-    entryConfirmed = true;
-    rejectionType = 'Confirmación parcial';
-    reasons = [
-      'Estructura a favor',
-      'Esperando más confirmación'
-    ];
-  } else {
-    // Sin confirmación
-    entryConfirmed = false;
-    rejectionType = 'Sin confirmación clara';
-    reasons = [];
-  }
-
-  return {
-    direction: direction1D,
-    trend: direction1D === 'bullish' ? 'uptrend' : 'downtrend',
-    ema50Position: direction1D === 'bullish' ? 'above' : 'below',
-    ema50Distance: 'close',
-    priceAction: entryConfirmed ? 'Entrada confirmada' : 'Sin confirmación',
-    keyLevels: { 
-      support: price - atr, 
-      resistance: price + atr 
-    },
-    confidence: entryConfirmed ? 60 + Math.floor(Math.random() * 25) : 25 + Math.floor(Math.random() * 15),
-    entryConfirmed,
-    rejectionType,
-    reasons
-  };
+  currentTime: string
+  utcHour: number
+  utcMinute: number
 }
 
-// Calcular Riesgo/Beneficio
-function calculateRiskReward(price: number, atr: number, direction: 'bullish' | 'bearish'): { 
-  valid: boolean; 
-  rr: number; 
-  entry: number; 
-  stopLoss: number; 
-  takeProfit: number;
-} {
-  // SL = 1.5 * ATR, TP = 3 * ATR = RR 1:2
-  const stopLoss = direction === 'bullish' ? price - atr * 1.5 : price + atr * 1.5;
-  const takeProfit = direction === 'bullish' ? price + atr * 3 : price - atr * 3;
-  
-  // Calcular RR real
-  const risk = Math.abs(price - stopLoss);
-  const reward = Math.abs(takeProfit - price);
-  const rr = reward / risk;
-  
-  // Mínimo 1:2
-  const valid = rr >= 2;
-  
-  return { valid, rr, entry: price, stopLoss, takeProfit };
+interface AnalysisResult {
+  symbol: string
+  trend1D: 'bullish' | 'bearish' | 'sideways'
+  trend1H: 'bullish' | 'bearish' | 'sideways'
+  ema50_5M: number
+  currentPrice: number
+  signal: 'BUY' | 'SELL' | 'WAIT'
+  confidence: 'Alta' | 'Media' | 'Baja'
+  explanation: string
+  priceAboveEMA: boolean
+  distanceToEMA: number
 }
 
-// ANÁLISIS JERÁRQUICO PRINCIPAL
-function performHierarchicalAnalysis(symbol: string, currentPrice: number): HierarchicalAnalysis {
-  const atr = symbol.includes('BTC') ? 500 : symbol.includes('ETH') ? 25 : 0.003;
-  const price = currentPrice || generatePrice(symbol).price;
+type TabId = 'learn' | 'market' | 'progress' | 'settings'
 
-  // PASO 1: Analizar 1D (DIRECCIÓN PRINCIPAL)
-  const timeframe1D = analyze1D(price, atr);
-  
-  // Si 1D está lateral → NO OPERAR
-  if (timeframe1D.direction === 'sideways') {
-    return {
-      canOperate: false,
-      blockReason: '1D LATERAL - Sin dirección clara',
-      direction: 'sideways',
-      timeframe1D,
-      timeframe1H: analyze1H(price, atr, 'sideways'),
-      timeframe5M: analyze5M(price, atr, 'sideways', false),
-      emaConfirmation: false,
-      riskRewardValid: false,
-      riskReward: 0
-    };
-  }
+// ============================================
+// MODULE DATA
+// ============================================
 
-  // PASO 2: Analizar 1H (FILTRO DE OPORTUNIDAD)
-  const timeframe1H = analyze1H(price, atr, timeframe1D.direction);
-  
-  // Si 1H no tiene patrón válido → NO OPERAR
-  if (!timeframe1H.validPattern) {
-    return {
-      canOperate: false,
-      blockReason: timeframe1H.trend === 'contradicts_1d' 
-        ? '1H CONTRADICE a 1D' 
-        : '1H SIN PATRÓN VÁLIDO',
-      direction: timeframe1D.direction,
-      timeframe1D,
-      timeframe1H,
-      timeframe5M: analyze5M(price, atr, timeframe1D.direction, false),
-      emaConfirmation: false,
-      riskRewardValid: false,
-      riskReward: 0
-    };
-  }
+const MODULES: Module[] = [
+  {
+    id: 'fundamentos',
+    title: 'Fundamentos',
+    description: 'Conceptos básicos del trading',
+    icon: BookOpen,
+    color: 'text-blue-400',
+    bgColor: 'bg-blue-500/20',
+    lessons: [
+      {
+        id: 'que-es-trading',
+        title: '¿Qué es el Trading?',
+        content: `El trading es la compra y venta de activos financieros (como divisas, acciones o criptomonedas) con el objetivo de obtener ganancias.
 
-  // PASO 3: Verificar EMA 50
-  const emaConfirmation = timeframe1D.ema50Distance !== 'extended' && 
-                          timeframe1H.ema50Distance !== 'extended';
-  
-  if (!emaConfirmation) {
-    return {
-      canOperate: false,
-      blockReason: 'EMA 50 - Precio muy alejado (sobreextensión)',
-      direction: timeframe1D.direction,
-      timeframe1D,
-      timeframe1H,
-      timeframe5M: analyze5M(price, atr, timeframe1D.direction, true),
-      emaConfirmation: false,
-      riskRewardValid: false,
-      riskReward: 0,
-      activePattern: timeframe1H.patternType
-    };
-  }
+A diferencia de invertir a largo plazo, el trading busca aprovechar los movimientos de precios en el corto plazo.
 
-  // PASO 4: Analizar 5M (EJECUCIÓN)
-  const timeframe5M = analyze5M(price, atr, timeframe1D.direction, true);
-  
-  // Si 5M no confirma → NO OPERAR
-  if (!timeframe5M.entryConfirmed) {
-    return {
-      canOperate: false,
-      blockReason: '5M SIN CONFIRMACIÓN de entrada',
-      direction: timeframe1D.direction,
-      timeframe1D,
-      timeframe1H,
-      timeframe5M,
-      emaConfirmation: true,
-      riskRewardValid: false,
-      riskReward: 0,
-      activePattern: timeframe1H.patternType
-    };
-  }
-
-  // PASO 5: Verificar Riesgo/Beneficio
-  const { valid: rrValid, rr, entry, stopLoss, takeProfit } = calculateRiskReward(price, atr, timeframe1D.direction);
-  
-  if (!rrValid) {
-    return {
-      canOperate: false,
-      blockReason: `RR ${rr.toFixed(1)}:1 - No cumple mínimo 1:2`,
-      direction: timeframe1D.direction,
-      timeframe1D,
-      timeframe1H,
-      timeframe5M,
-      emaConfirmation: true,
-      riskRewardValid: false,
-      riskReward: rr,
-      activePattern: timeframe1H.patternType
-    };
-  }
-
-  // TODAS LAS CONDICIONES CUMPLIDAS → OPERAR
-  return {
-    canOperate: true,
-    direction: timeframe1D.direction,
-    timeframe1D,
-    timeframe1H,
-    timeframe5M,
-    emaConfirmation: true,
-    riskRewardValid: true,
-    riskReward: rr,
-    activePattern: timeframe1H.patternType
-  };
-}
-
-// Generate decision based on hierarchical analysis
-const generateDecision = (symbol: string, strategyId: 'ema50' | 'candlestick' | 'smart_money', currentPrice?: number) => {
-  const priceData = generatePrice(symbol);
-  const price = currentPrice || priceData.price;
-  const atr = symbol.includes('BTC') ? 500 : symbol.includes('ETH') ? 25 : 0.003;
-  
-  // Ejecutar análisis jerárquico
-  const analysis = performHierarchicalAnalysis(symbol, price);
-  
-  // Determinar acción basada en el análisis
-  const action = analysis.canOperate && analysis.direction !== 'sideways' 
-    ? (analysis.direction === 'bullish' ? 'BUY' : 'SELL') 
-    : 'WAIT';
-  
-  // Calcular probabilidad basada en confianza de cada nivel
-  const probability = analysis.canOperate 
-    ? Math.min(
-        analysis.timeframe1D.confidence,
-        analysis.timeframe1H.confidence,
-        analysis.timeframe5M.confidence
-      )
-    : 20 + Math.floor(Math.random() * 20);
-
-  // Strategy-specific conditions display
-  const getStrategyConditions = () => {
-    const baseConditions = [
-      { 
-        label: '1D Dirección', 
-        value: analysis.timeframe1D.direction === 'bullish' ? 'Alcista ✓' : 
-               analysis.timeframe1D.direction === 'bearish' ? 'Bajista ✓' : 'Lateral ✗', 
-        status: analysis.timeframe1D.direction !== 'sideways' 
+Un trader analiza los mercados, identifica oportunidades y ejecuta operaciones con un plan definido.`,
+        example: 'Ejemplo: Compras EUR/USD a 1.1000 y lo vendes a 1.1050. Ganancia = 50 pips.'
       },
-      { 
-        label: '1H Patrón', 
-        value: analysis.timeframe1H.validPattern ? `${analysis.activePattern} ✓` : 'Sin patrón válido ✗', 
-        status: analysis.timeframe1H.validPattern || false 
-      },
-      { 
-        label: 'EMA 50', 
-        value: analysis.emaConfirmation ? 'Confirma tendencia ✓' : 'Sobreextensión ✗', 
-        status: analysis.emaConfirmation 
-      },
-      { 
-        label: '5M Entrada', 
-        value: analysis.timeframe5M.entryConfirmed ? 'Confirmada ✓' : 'Sin confirmar ✗', 
-        status: analysis.timeframe5M.entryConfirmed || false 
-      },
-      { 
-        label: 'Riesgo/Beneficio', 
-        value: analysis.riskRewardValid ? `${analysis.riskReward.toFixed(1)}:1 ✓` : 'No cumple 1:2 ✗', 
-        status: analysis.riskRewardValid 
-      },
-    ];
-    
-    return baseConditions;
-  };
+      {
+        id: 'tipos-mercado',
+        title: 'Tipos de Mercado',
+        content: `Forex (Divisas): El mercado más grande del mundo. Opera 24 horas de lunes a viernes.
 
-  // Strategy name mapping
-  const strategyNames = {
-    ema50: 'EMA 50',
-    candlestick: 'Velas Japonesas',
-    smart_money: 'Smart Money'
-  };
+Criptomonedas: Mercado descentralizado que opera 24/7. Alta volatilidad.
 
-  // Entry reason
-  let entryReason = '';
-  if (!analysis.canOperate) {
-    entryReason = `NO OPERAR: ${analysis.blockReason}`;
-  } else {
-    entryReason = analysis.direction === 'bullish'
-      ? `ENTRADA LARGA: ${analysis.activePattern}. Confirmado en 5M. RR ${analysis.riskReward.toFixed(1)}:1`
-      : `ENTRADA CORTA: ${analysis.activePattern}. Confirmado en 5M. RR ${analysis.riskReward.toFixed(1)}:1`;
-  }
+Acciones: Mercados de empresas con horarios específicos según el país.
 
-  // Calculate levels
-  const { entry, stopLoss, takeProfit } = analysis.canOperate 
-    ? calculateRiskReward(price, atr, analysis.direction)
-    : { entry: undefined, stopLoss: undefined, takeProfit: undefined };
-  
-  return {
-    action,
-    direction: analysis.direction,
-    probability,
-    entry: action !== 'WAIT' ? entry : undefined,
-    stopLoss,
-    takeProfit,
-    riskReward: analysis.riskReward || 0,
-    strategyName: strategyNames[strategyId],
-    strategyAnalysis: 'Análisis Jerárquico Multi-Temporalidad',
-    strategyConditions: getStrategyConditions(),
-    entryReason,
-    patterns: analysis.activePattern ? [analysis.activePattern] : [],
-    blockReason: analysis.blockReason,
-    canOperate: analysis.canOperate,
-    timeframes: {
-      '1D': {
-        direction: analysis.timeframe1D.direction,
-        trend: analysis.timeframe1D.trend,
-        ema50Position: analysis.timeframe1D.ema50Position,
-        emaDistance: analysis.timeframe1D.ema50Distance,
-        priceAction: analysis.timeframe1D.priceAction,
-        keyLevels: analysis.timeframe1D.keyLevels,
-        confidence: analysis.timeframe1D.confidence
+CFDs: Contratos por diferencia que permiten operar sin poseer el activo.`,
+        example: 'EUR/USD = Forex | BTC/USD = Crypto | AAPL = Acciones'
       },
-      '1H': {
-        direction: analysis.timeframe1H.direction,
-        validPattern: analysis.timeframe1H.validPattern,
-        patternType: analysis.timeframe1H.patternType,
-        confidence: analysis.timeframe1H.confidence
+      {
+        id: 'velas-japonesas',
+        title: 'Velas Japonesas',
+        content: `Las velas japonesas muestran el movimiento del precio en un período de tiempo.
+
+Cada vela tiene: Apertura, Cierre, Máximo y Mínimo.
+
+Velas verdes/alcistas: El cierre fue mayor que la apertura.
+Velas rojas/bajistas: El cierre fue menor que la apertura.`,
+        example: 'Una vela verde grande indica fuerte presión compradora.'
       },
-      '5M': {
-        confirmed: analysis.timeframe5M.entryConfirmed || false,
-        reasons: analysis.timeframe5M.reasons || [],
-        rejectionType: analysis.timeframe5M.rejectionType,
-        confidence: analysis.timeframe5M.confidence
+      {
+        id: 'tendencias',
+        title: 'Tendencias',
+        content: `Tendencia Alcista: El precio forma máximos y mínimos más altos cada vez.
+
+Tendencia Bajista: El precio forma máximos y mínimos más bajos cada vez.
+
+Tendencia Lateral: El precio se mueve en un rango sin dirección clara.
+
+"La tendencia es tu amiga" - Nunca operes en contra de la tendencia principal.`,
+        example: 'En tendencia alcista, busca compras en los retrocesos.'
       }
-    }
-  };
-};
-
-// ============ ZONE DRAWER COMPONENT ============
-interface Zone {
-  id: string;
-  symbol: string;
-  interval: string;
-  zone_type: 'support' | 'resistance' | 'demand' | 'supply';
-  price_top: number;
-  price_bottom: number;
-  color: string;
-  created_at: string;
-}
-
-const ZONE_COLORS = {
-  support: '#22c55e',
-  resistance: '#ef4444',
-  demand: '#3b82f6',
-  supply: '#f59e0b',
-};
-
-const ZONE_TYPES = [
-  { id: 'support', name: 'Soporte', color: '#22c55e' },
-  { id: 'resistance', name: 'Resistencia', color: '#ef4444' },
-  { id: 'demand', name: 'Demanda', color: '#3b82f6' },
-  { id: 'supply', name: 'Oferta', color: '#f59e0b' },
-];
-
-function ZoneDrawer({ symbol, interval, currentPrice }: { symbol: string; interval: string; currentPrice: number }) {
-  const [zones, setZones] = useState<Zone[]>([]);
-  const [isDrawing, setIsDrawing] = useState(false);
-  const [selectedType, setSelectedType] = useState<'support' | 'resistance' | 'demand' | 'supply'>('support');
-  const [showPanel, setShowPanel] = useState(false);
-  const [startPrice, setStartPrice] = useState<string>('');
-  const [endPrice, setEndPrice] = useState<string>('');
-  const [loading, setLoading] = useState(false);
-
-  // Load zones from Supabase
-  useEffect(() => {
-    const loadZones = async () => {
-      try {
-        const response = await fetch(`/api/zones?symbol=${encodeURIComponent(symbol)}&interval=${interval}`);
-        const data = await response.json();
-        if (data.zones) {
-          setZones(data.zones);
-        }
-      } catch (error) {
-        console.error('Error loading zones:', error);
+    ],
+    quiz: [
+      {
+        id: 'q1',
+        question: '¿Qué indica una vela verde alcista?',
+        options: ['El cierre fue menor que la apertura', 'El cierre fue mayor que la apertura', 'El precio no se movió', 'El volumen fue alto'],
+        correctAnswer: 1,
+        explanation: 'Una vela verde/alcista significa que el precio cerró por encima de donde abrió, indicando presión compradora.'
+      },
+      {
+        id: 'q2',
+        question: '¿Cuál es la característica de una tendencia alcista?',
+        options: ['Máximos y mínimos más bajos', 'Precio constante', 'Máximos y mínimos más altos', 'Alta volatilidad sin dirección'],
+        correctAnswer: 2,
+        explanation: 'En una tendencia alcista, cada nuevo máximo supera al anterior y cada mínimo también es más alto.'
       }
-    };
-    loadZones();
-  }, [symbol, interval]);
+    ]
+  },
+  {
+    id: 'graficos',
+    title: 'Gráficos',
+    description: 'Lectura y análisis de gráficos',
+    icon: BarChart3,
+    color: 'text-emerald-400',
+    bgColor: 'bg-emerald-500/20',
+    lessons: [
+      {
+        id: 'temporalidades',
+        title: 'Temporalidades',
+        content: `1D (Diario): Muestra la tendencia principal. Úsalo para dirección.
 
-  // Save zone
-  const saveZone = async () => {
-    const top = parseFloat(startPrice);
-    const bottom = parseFloat(endPrice);
-    
-    if (isNaN(top) || isNaN(bottom)) return;
+1H (1 Hora): Ideal para análisis de entrada y zonas de valor.
 
-    setLoading(true);
-    try {
-      const response = await fetch('/api/zones', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          symbol,
-          interval,
-          zoneType: selectedType,
-          priceTop: Math.max(top, bottom),
-          priceBottom: Math.min(top, bottom),
-          color: ZONE_COLORS[selectedType],
-        }),
-      });
+15M (15 Minutos): Para confirmar entradas y ajustar stop loss.
 
-      const data = await response.json();
-      if (data.success) {
-        // Reload zones
-        const zonesResponse = await fetch(`/api/zones?symbol=${encodeURIComponent(symbol)}&interval=${interval}`);
-        const zonesData = await zonesResponse.json();
-        if (zonesData.zones) {
-          setZones(zonesData.zones);
-        }
-        setStartPrice('');
-        setEndPrice('');
-        setIsDrawing(false);
+5M (5 Minutos): Para ejecución precisa en day trading.`,
+        example: 'Regla: Operar en dirección de 1D, buscar entradas en 1H, confirmar en 15M.'
+      },
+      {
+        id: 'soportes-resistencias',
+        title: 'Soportes y Resistencias',
+        content: `Soporte: Zona donde el precio ha rebotado varias veces hacia arriba. Es un "piso".
+
+Resistencia: Zona donde el precio ha rebotado varias veces hacia abajo. Es un "techo".
+
+Más toques = Zona más importante.
+
+Cuando el precio rompe un soporte, este se convierte en resistencia (y viceversa).`,
+        example: 'EUR/USD rebota en 1.0800 tres veces = Soporte fuerte.'
+      },
+      {
+        id: 'leer-grafico',
+        title: 'Cómo Leer un Gráfico',
+        content: `1. Identifica la tendencia principal (dirección de 1D)
+
+2. Busca zonas clave (soportes y resistencias)
+
+3. Ubica dónde está el precio respecto a las zonas
+
+4. Espera a que el precio llegue a una zona importante
+
+5. Busca confirmación de reversión en esa zona`,
+        example: 'Tendencia alcista + Precio en soporte + Vela de rechazo = Oportunidad de compra'
       }
-    } catch (error) {
-      console.error('Error saving zone:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+    ],
+    quiz: [
+      {
+        id: 'q1',
+        question: '¿Qué temporalidad usas para identificar la dirección principal?',
+        options: ['5 minutos', '15 minutos', '1 hora', '1 día (Diario)'],
+        correctAnswer: 3,
+        explanation: 'El gráfico diario (1D) muestra la tendencia principal que guía tus operaciones.'
+      },
+      {
+        id: 'q2',
+        question: '¿Qué pasa cuando el precio rompe un soporte?',
+        options: ['Continúa bajando sin parar', 'El soporte se convierte en resistencia', 'El precio vuelve al soporte', 'Nada significativo'],
+        correctAnswer: 1,
+        explanation: 'Cuando el precio rompe un soporte con fuerza, este nivel suele convertirse en resistencia futura.'
+      }
+    ]
+  },
+  {
+    id: 'estrategia',
+    title: 'Estrategia Básica',
+    description: 'Tendencia + Retroceso + Continuación',
+    icon: Target,
+    color: 'text-amber-400',
+    bgColor: 'bg-amber-500/20',
+    lessons: [
+      {
+        id: 'concepto-basico',
+        title: 'Concepto de la Estrategia',
+        content: `Esta estrategia se basa en seguir la tendencia principal y esperar un retroceso para entrar.
 
-  // Delete zone
-  const deleteZone = async (zoneId: string) => {
-    try {
-      await fetch(`/api/zones?id=${zoneId}`, { method: 'DELETE' });
-      setZones(zones.filter(z => z.id !== zoneId));
-    } catch (error) {
-      console.error('Error deleting zone:', error);
-    }
-  };
+Pasos:
+1. IDENTIFICAR tendencia en 1D
+2. ESPERAR retroceso en 1H  
+3. CONFIRMAR entrada en 15M
 
-  // Quick zone creation
-  const createQuickZone = (type: 'support' | 'resistance' | 'demand' | 'supply') => {
-    const offset = currentPrice * 0.002; // 0.2% range
-    setSelectedType(type);
-    setStartPrice((currentPrice + offset).toFixed(5));
-    setEndPrice((currentPrice - offset).toFixed(5));
-    setIsDrawing(true);
-  };
+Nunca operes en contra de la tendencia principal.`,
+        example: '1D alcista → Precio retrocede → Entras en compra'
+      },
+      {
+        id: 'paso1-identificar',
+        title: 'Paso 1: Identificar Tendencia',
+        content: `Abre el gráfico diario (1D) y determina la dirección:
+
+ALCISTA: Máximos más altos + EMA20 sobre EMA50
+BAJISTA: Máximos más bajos + EMA20 bajo EMA50
+LATERAL: Precios en rango → NO OPERAR
+
+Si el mercado está lateral, espera a que defina dirección.`,
+        example: 'Si 1D muestra máximos ascendentes y EMA20 > EMA50 = Tendencia ALCISTA'
+      },
+      {
+        id: 'paso2-esperar',
+        title: 'Paso 2: Esperar Retroceso',
+        content: `Una vez identificada la tendencia, NO entres inmediatamente.
+
+Espera a que el precio retroceda hacia:
+- Una zona de soporte/resistencia
+- Una EMA importante (EMA 50)
+- Una zona de valor
+
+El retroceso es tu oportunidad de entrada con mejor riesgo/beneficio.`,
+        example: 'Tendencia alcista → Precio baja a soporte → Preparas entrada larga'
+      },
+      {
+        id: 'paso3-confirmar',
+        title: 'Paso 3: Confirmar Entrada',
+        content: `En el gráfico de 15M, busca confirmación:
+
+- Vela de rechazo en la zona (mecha, martillo, envolvente)
+- RSI saliendo de zona de sobreventa/sobrecompra
+- Volumen aumentando en la reversión
+
+Sin confirmación, NO entres. Mejor perder una oportunidad que perder dinero.`,
+        example: 'Vela martillo en soporte + RSI subiendo de 30 = Confirmación de compra'
+      }
+    ],
+    quiz: [
+      {
+        id: 'q1',
+        question: '¿Cuál es el primer paso de la estrategia?',
+        options: ['Entrar inmediatamente', 'Identificar tendencia en 1D', 'Poner stop loss', 'Ver las noticias'],
+        correctAnswer: 1,
+        explanation: 'El primer paso siempre es identificar la tendencia principal en el gráfico diario.'
+      },
+      {
+        id: 'q2',
+        question: '¿Qué haces si el mercado está lateral en 1D?',
+        options: ['Operar igual', 'NO operar', 'Operar en contra', 'Usar más apalancamiento'],
+        correctAnswer: 1,
+        explanation: 'Cuando el mercado está lateral, no hay dirección clara. Es mejor esperar.'
+      }
+    ]
+  },
+  {
+    id: 'riesgo',
+    title: 'Gestión de Riesgo',
+    description: 'Protege tu capital',
+    icon: Shield,
+    color: 'text-red-400',
+    bgColor: 'bg-red-500/20',
+    lessons: [
+      {
+        id: 'regla-1-2',
+        title: 'Regla del 1-2%',
+        content: `NUNCA arriesgues más del 1-2% de tu capital en una sola operación.
+
+Si tienes $1000, arriesga máximo $10-$20 por operación.
+
+Esta regla te permite sobrevivir rachas perdedoras y seguir operando.
+
+El trading es maratón, no sprint. Proteger el capital es lo más importante.`,
+        example: 'Capital: $5000 | Riesgo máximo: $50-$100 por operación'
+      },
+      {
+        id: 'stop-loss',
+        title: 'Stop Loss',
+        content: `El Stop Loss es tu seguro. Siempre úsalo.
+
+Colócalo más allá de:
+- Un soporte/resistencia
+- Un máximo/mínimo reciente
+- Un nivel técnico importante
+
+NUNCA muevas el stop loss contra ti. Solo a favor para proteger ganancias.`,
+        example: 'Compras en 1.1000 → Stop Loss en 1.0950 (abajo del soporte)'
+      },
+      {
+        id: 'take-profit',
+        title: 'Take Profit',
+        content: `El Take Profit es tu objetivo de ganancia.
+
+Relación Riesgo/Beneficio mínima: 1:2
+- Si arriesgas $50, busca ganar mínimo $100
+
+No seas codicioso. Cierra en tus objetivos.
+
+Puedes cerrar parcialmente en TP1 y dejar el resto para TP2.`,
+        example: 'Entrada: 1.1000 | SL: 1.0950 | TP1: 1.1100 | TP2: 1.1150'
+      },
+      {
+        id: 'calculadora-riesgo',
+        title: 'Calculadora de Riesgo',
+        content: `Para calcular el tamaño de posición:
+
+1. Define tu riesgo (1-2% del capital)
+2. Mide la distancia al stop loss en pips
+3. Calcula lotes: Riesgo ÷ (Pips × Valor por pip)
+
+Ejemplo:
+- Capital: $1000
+- Riesgo: $20 (2%)
+- Stop Loss: 50 pips
+- Lotes: $20 ÷ 50 = $0.40/pip`,
+        example: 'Usa siempre la calculadora antes de entrar.'
+      }
+    ],
+    quiz: [
+      {
+        id: 'q1',
+        question: '¿Cuánto deberías arriesgar como máximo por operación?',
+        options: ['El 50% del capital', 'El 10% del capital', 'El 1-2% del capital', 'Todo el capital'],
+        correctAnswer: 2,
+        explanation: 'La regla del 1-2% asegura que puedas sobrevivir a pérdidas consecutivas.'
+      },
+      {
+        id: 'q2',
+        question: '¿Cuál es la relación riesgo/beneficio mínima recomendada?',
+        options: ['1:1', '1:2', '2:1', '1:0.5'],
+        correctAnswer: 1,
+        explanation: 'Con 1:2, si ganas el 50% de tus operaciones, serás rentable.'
+      }
+    ]
+  },
+  {
+    id: 'psicologia',
+    title: 'Psicología',
+    description: 'Control emocional y disciplina',
+    icon: Brain,
+    color: 'text-purple-400',
+    bgColor: 'bg-purple-500/20',
+    lessons: [
+      {
+        id: 'errores-comunes',
+        title: 'Errores Comunes',
+        content: `❌ Sobreoperar: Entrar sin análisis por aburrimiento o emoción.
+
+❌ No usar stop loss: "Ya va a volver" - La frase más cara del trading.
+
+❌ Promediar a la baja: Añadir a una posición perdedora.
+
+❌ Venganza: Operar grande para recuperar lo perdido.
+
+❌ FOMO: Entrar tarde por miedo a perder una oportunidad.`,
+        example: 'Identificar estos errores es el primer paso para corregirlos.'
+      },
+      {
+        id: 'control-emocional',
+        title: 'Control Emocional',
+        content: `El trading activa emociones intensas. Aprende a manejarlas:
+
+CODICIA: Cuando ganaste mucho → Cierra parcial, no aumentes riesgo.
+
+MIEDO: Cuando pierdes → Pausa, no entres por venganza.
+
+EUFORIA: Racha ganadora → Mantén el plan, no te confíes.
+
+PÁNICO: Racha perdedora → PARA, cierra la plataforma.`,
+        example: 'Las emociones son el peor enemigo del trader. El plan es tu mejor amigo.'
+      },
+      {
+        id: 'disciplina',
+        title: 'Disciplina',
+        content: `La disciplina es la diferencia entre traders exitosos y los que fallan.
+
+Crea reglas y síguelas SIEMPRE:
+✓ Solo operar en horarios definidos
+✓ Máximo X operaciones por día
+✓ No operar si estás emocionalmente alterado
+✓ Cerrar todo antes de eventos importantes
+
+Un plan sin disciplina es solo un deseo.`,
+        example: 'Traders disciplinados ganan consistentemente. Los demás, no.'
+      },
+      {
+        id: 'rutina-trader',
+        title: 'Rutina del Trader',
+        content: `ANTES de operar:
+- Revisa el calendario económico
+- Analiza los pares que seguirás
+- Define tu estado emocional
+
+DURANTE la operación:
+- Sigue tu plan sin desviarte
+- No muevas el stop loss contra ti
+- Registra cada operación
+
+DESPUÉS de operar:
+- Revisa tus operaciones del día
+- Identifica errores y aciertos
+- Descansa`,
+        example: 'La rutina crea consistencia. La consistencia crea resultados.'
+      }
+    ],
+    quiz: [
+      {
+        id: 'q1',
+        question: '¿Qué es FOMO en trading?',
+        options: [
+          'Una estrategia de entrada',
+          'Miedo a perder una oportunidad y entrar tarde',
+          'Un indicador técnico',
+          'Un tipo de stop loss'
+        ],
+        correctAnswer: 1,
+        explanation: 'FOMO (Fear of Missing Out) te hace entrar en mal momento. Espera la próxima.'
+      },
+      {
+        id: 'q2',
+        question: '¿Qué debes hacer después de una racha perdedora?',
+        options: [
+          'Operar con más tamaño para recuperar',
+          'PARAR y revisar qué salió mal',
+          'Cambiar de estrategia inmediatamente',
+          'No hacer nada diferente'
+        ],
+        correctAnswer: 1,
+        explanation: 'Las rachas perdedoras requieren pausa y análisis, no más operaciones.'
+      }
+    ]
+  }
+]
+
+// ============================================
+// FOREX PAIRS
+// ============================================
+
+const FOREX_PAIRS = [
+  // Major pairs
+  { symbol: 'EUR/USD', name: 'Euro / Dólar', type: 'major' },
+  { symbol: 'GBP/USD', name: 'Libra / Dólar', type: 'major' },
+  { symbol: 'USD/JPY', name: 'Dólar / Yen', type: 'major' },
+  { symbol: 'USD/CHF', name: 'Dólar / Franco', type: 'major' },
+  { symbol: 'AUD/USD', name: 'Aussie / Dólar', type: 'major' },
+  { symbol: 'USD/CAD', name: 'Dólar / Loonie', type: 'major' },
+  { symbol: 'NZD/USD', name: 'Kiwi / Dólar', type: 'major' },
+  // Cross pairs
+  { symbol: 'EUR/GBP', name: 'Euro / Libra', type: 'cross' },
+  { symbol: 'EUR/JPY', name: 'Euro / Yen', type: 'cross' },
+  { symbol: 'GBP/JPY', name: 'Libra / Yen', type: 'cross' },
+  { symbol: 'EUR/AUD', name: 'Euro / Aussie', type: 'cross' },
+  { symbol: 'GBP/AUD', name: 'Libra / Aussie', type: 'cross' },
+  { symbol: 'AUD/JPY', name: 'Aussie / Yen', type: 'cross' },
+  { symbol: 'EUR/CHF', name: 'Euro / Franco', type: 'cross' },
+  { symbol: 'GBP/CHF', name: 'Libra / Franco', type: 'cross' },
+  { symbol: 'AUD/CHF', name: 'Aussie / Franco', type: 'cross' },
+  { symbol: 'NZD/JPY', name: 'Kiwi / Yen', type: 'cross' },
+  { symbol: 'EUR/CAD', name: 'Euro / Loonie', type: 'cross' },
+  { symbol: 'GBP/CAD', name: 'Libra / Loonie', type: 'cross' },
+  { symbol: 'AUD/CAD', name: 'Aussie / Loonie', type: 'cross' },
+  { symbol: 'AUD/NZD', name: 'Aussie / Kiwi', type: 'cross' },
+  { symbol: 'CAD/JPY', name: 'Loonie / Yen', type: 'cross' }
+]
+
+// ============================================
+// RISK CALCULATOR COMPONENT
+// ============================================
+
+function RiskCalculator() {
+  const [capital, setCapital] = useState<string>('1000')
+  const [riskPercent, setRiskPercent] = useState<string>('2')
+  const [stopLossPips, setStopLossPips] = useState<string>('50')
+
+  const capitalNum = parseFloat(capital) || 0
+  const riskPercentNum = parseFloat(riskPercent) || 0
+  const stopLossPipsNum = parseFloat(stopLossPips) || 1
+
+  const riskAmount = (capitalNum * riskPercentNum) / 100
+  const valuePerPip = stopLossPipsNum > 0 ? riskAmount / stopLossPipsNum : 0
+  const lotSize = valuePerPip / 10 // Approximate for forex
 
   return (
-    <div className="relative">
-      {/* Toggle Button */}
-      <Button
-        variant="secondary"
-        size="sm"
-        onClick={() => setShowPanel(!showPanel)}
-        className="flex items-center gap-1 bg-background/90 backdrop-blur"
-      >
-        <Layers className="w-4 h-4" />
-        <span className="hidden sm:inline">Zonas</span>
-        {zones.length > 0 && (
-          <Badge variant="secondary" className="ml-1 px-1.5 py-0 text-xs">
-            {zones.length}
-          </Badge>
-        )}
-      </Button>
-
-      {/* Zone Panel */}
-      {showPanel && (
-        <Card className="absolute top-10 left-0 w-80 z-50 shadow-lg">
-          <CardContent className="p-3 space-y-3">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-              <span className="font-semibold text-sm">Guardar Zonas</span>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowPanel(false)}
-                className="h-6 w-6 p-0"
-              >
-                <X className="w-4 h-4" />
-              </Button>
-            </div>
-
-            {/* Zone Type Selector */}
-            <div className="grid grid-cols-2 gap-1">
-              {ZONE_TYPES.map((type) => (
-                <Button
-                  key={type.id}
-                  variant={selectedType === type.id ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setSelectedType(type.id as any)}
-                  className="text-xs justify-start"
-                  style={{ 
-                    borderLeft: `3px solid ${type.color}`,
-                    paddingLeft: '8px'
-                  }}
-                >
-                  {type.name}
-                </Button>
-              ))}
-            </div>
-
-            {/* Quick Zone Buttons */}
-            <div className="space-y-1">
-              <span className="text-xs text-muted-foreground">Crear zona rápida:</span>
-              <div className="grid grid-cols-2 gap-1">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => createQuickZone('support')}
-                  className="text-xs"
-                  style={{ borderLeft: '3px solid #22c55e' }}
-                >
-                  + Soporte
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => createQuickZone('resistance')}
-                  className="text-xs"
-                  style={{ borderLeft: '3px solid #ef4444' }}
-                >
-                  + Resistencia
-                </Button>
-              </div>
-            </div>
-
-            {/* Drawing Mode */}
-            {isDrawing && (
-              <div className="space-y-2 p-2 bg-muted rounded-lg">
-                <div className="text-xs font-medium">Nueva zona {selectedType}:</div>
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div>
-                    <span className="text-muted-foreground">Precio superior:</span>
-                    <input
-                      type="number"
-                      step="0.00001"
-                      value={startPrice}
-                      onChange={(e) => setStartPrice(e.target.value)}
-                      className="w-full mt-1 p-1.5 bg-background rounded border text-xs"
-                      placeholder="1.08500"
-                    />
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Precio inferior:</span>
-                    <input
-                      type="number"
-                      step="0.00001"
-                      value={endPrice}
-                      onChange={(e) => setEndPrice(e.target.value)}
-                      className="w-full mt-1 p-1.5 bg-background rounded border text-xs"
-                      placeholder="1.08300"
-                    />
-                  </div>
-                </div>
-                <div className="flex gap-1">
-                  <Button
-                    size="sm"
-                    onClick={saveZone}
-                    disabled={loading || !startPrice || !endPrice}
-                    className="flex-1"
-                  >
-                    <Save className="w-3 h-3 mr-1" />
-                    Guardar
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setIsDrawing(false);
-                      setStartPrice('');
-                      setEndPrice('');
-                    }}
-                  >
-                    <X className="w-3 h-3" />
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {/* Saved Zones List */}
-            {zones.length > 0 && (
-              <div className="space-y-1 max-h-32 overflow-y-auto">
-                <span className="text-xs text-muted-foreground">Zonas guardadas:</span>
-                {zones.map((zone) => (
-                  <div
-                    key={zone.id}
-                    className="flex items-center justify-between p-2 bg-muted/50 rounded text-xs"
-                  >
-                    <div className="flex items-center gap-2">
-                      <div
-                        className="w-3 h-3 rounded"
-                        style={{ backgroundColor: zone.color }}
-                      />
-                      <span className="capitalize">{zone.zone_type}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-muted-foreground">
-                        {zone.price_bottom.toFixed(5)} - {zone.price_top.toFixed(5)}
-                      </span>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => deleteZone(zone.id)}
-                        className="h-5 w-5 p-0 text-destructive hover:text-destructive"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* New Zone Button */}
-            {!isDrawing && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setStartPrice((currentPrice * 1.001).toFixed(5));
-                  setEndPrice((currentPrice * 0.999).toFixed(5));
-                  setIsDrawing(true);
-                }}
-                className="w-full"
-              >
-                <Square className="w-4 h-4 mr-1" />
-                Nueva Zona Manual
-              </Button>
-            )}
-          </CardContent>
-        </Card>
-      )}
-    </div>
-  );
-}
-
-// ============ DASHBOARD TAB ============
-function DashboardTab() {
-  const [selectedAsset, setSelectedAsset] = useState<typeof ASSETS[0] | null>(null);
-  const [category, setCategory] = useState('all');
-  const [prices, setPrices] = useState<Map<string, PriceData>>(new Map());
-  const [mounted, setMounted] = useState(false);
-  const [marketStatus, setMarketStatus] = useState<ReturnType<typeof getActiveSessions>>({
-    sessions: [], isWeekend: false, forexOpen: true, cryptoOpen: true
-  });
-
-  useEffect(() => {
-    setMounted(true);
-    
-    const updateData = async () => {
-      const newPrices = await fetchPrices();
-      setPrices(newPrices);
-      setMarketStatus(getActiveSessions());
-    };
-    
-    updateData();
-    // Update every 3 seconds for real-time data
-    const interval = setInterval(updateData, 3000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const filteredAssets = category === 'all' ? ASSETS : ASSETS.filter(a => a.category === category);
-
-  if (!mounted) return null;
-
-  return (
-    <div className="flex flex-col h-full">
-      {/* Market Status with Sessions */}
-      <div className="p-3 bg-card border-b border-border">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-xs text-muted-foreground">Estado del Mercado</span>
-          <Badge variant={marketStatus.forexOpen ? 'bull' : 'neutral'}>
-            {marketStatus.forexOpen ? 'Abierto' : 'Cerrado'}
-          </Badge>
-        </div>
-        {/* Active Sessions */}
-        <div className="flex gap-2 overflow-x-auto">
-          {SESSIONS.map((session) => {
-            const isActive = marketStatus.sessions.some(s => s.id === session.id);
-            return (
-              <Badge 
-                key={session.id} 
-                variant={isActive ? 'session' : 'outline'}
-                className="flex items-center gap-1"
-              >
-                <Globe className="w-3 h-3" />
-                {session.shortName}
-                {isActive && <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />}
-              </Badge>
-            );
-          })}
-        </div>
+    <div className="bg-gradient-to-br from-red-500/10 to-red-500/5 border border-red-500/30 rounded-xl p-4">
+      <div className="flex items-center gap-2 mb-4">
+        <DollarSign className="w-5 h-5 text-red-400" />
+        <h3 className="font-semibold">Calculadora de Riesgo</h3>
       </div>
-
-      {/* Category Filter */}
-      <div className="p-3 border-b border-border">
-        <div className="flex gap-2 overflow-x-auto">
-          {CATEGORIES.map((cat) => (
-            <Button
-              key={cat.id}
-              variant={category === cat.id ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setCategory(cat.id)}
-            >
-              {cat.name}
-            </Button>
-          ))}
-        </div>
-      </div>
-
-      {/* Asset List */}
-      <ScrollArea className="flex-1">
-        <div className="p-2 space-y-1">
-          {filteredAssets.map((asset) => {
-            const price = prices.get(asset.symbol);
-            const isSelected = selectedAsset?.symbol === asset.symbol;
-            
-            return (
-              <button
-                key={asset.symbol}
-                onClick={() => setSelectedAsset(asset)}
-                className={cn(
-                  "w-full p-3 rounded-lg flex items-center justify-between transition-all hover:bg-accent/50",
-                  isSelected && "bg-accent ring-1 ring-primary"
-                )}
-              >
-                <div className="flex flex-col items-start">
-                  <span className="font-semibold text-sm">{asset.symbol}</span>
-                  <span className="text-xs text-muted-foreground">{asset.name}</span>
-                </div>
-                {price && (
-                  <div className="flex flex-col items-end">
-                    <span className="font-mono text-sm">{formatPrice(price.price, asset.symbol)}</span>
-                    <span className={cn("text-xs", getChangeClass(price.changePercent))}>
-                      {formatPercent(price.changePercent)}
-                    </span>
-                  </div>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      </ScrollArea>
-
-      {selectedAsset && (
-        <div className="p-3 border-t border-border bg-card">
-          <AssetQuickInfo asset={selectedAsset} price={prices.get(selectedAsset.symbol)} />
-        </div>
-      )}
-    </div>
-  );
-}
-
-function AssetQuickInfo({ asset, price }: { asset: typeof ASSETS[0]; price?: PriceData }) {
-  const [decision, setDecision] = useState<ReturnType<typeof generateDecision> | null>(null);
-
-  useEffect(() => {
-    setDecision(generateDecision(asset.symbol, 'ema50', price?.price));
-  }, [asset.symbol, price?.price]);
-
-  return (
-    <div className="space-y-2">
-      {/* Header con acción y estado */}
-      <div className="flex items-center justify-between">
-        <span className="font-bold">{asset.symbol}</span>
-        {decision && (
-          <div className="flex items-center gap-2">
-            {decision.canOperate === false && decision.blockReason && (
-              <span className="text-xs text-red-400 truncate max-w-32">
-                {decision.blockReason}
-              </span>
-            )}
-            <Badge variant={decision.action === 'BUY' ? 'bull' : decision.action === 'SELL' ? 'bear' : 'neutral'}>
-              {decision.action}
-            </Badge>
-          </div>
-        )}
-      </div>
-      
-      {/* Probabilidad */}
-      {decision && (
-        <div className="flex items-center gap-2">
-          <Progress value={decision.probability} className="h-2 flex-1" />
-          <span className="text-xs text-muted-foreground">{decision.probability}%</span>
-        </div>
-      )}
-      
-      {/* Condiciones jerárquicas en miniatura */}
-      {decision && decision.strategyConditions && (
-        <div className="grid grid-cols-5 gap-1 text-xs">
-          {decision.strategyConditions.slice(0, 5).map((cond, idx) => (
-            <div 
-              key={idx}
-              className={cn(
-                "flex flex-col items-center p-1 rounded",
-                cond.status ? "bg-green-500/20" : "bg-red-500/20"
-              )}
-            >
-              <span className={cn("font-medium", cond.status ? "text-green-400" : "text-red-400")}>
-                {cond.status ? "✓" : "✗"}
-              </span>
-              <span className="text-[10px] text-muted-foreground text-center truncate w-full">
-                {cond.label.replace('1D ', '').replace('1H ', '').replace('EMA ', '').replace('5M ', '').replace('Riesgo/', 'RR')}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
-      
-      {/* Precios */}
-      {price && (
-        <div className="grid grid-cols-3 gap-2 text-xs">
-          <div>
-            <span className="text-muted-foreground">Alto</span>
-            <p className="font-mono">{formatPrice(price.high || price.price * 1.001, asset.symbol)}</p>
-          </div>
-          <div>
-            <span className="text-muted-foreground">Bajo</span>
-            <p className="font-mono">{formatPrice(price.low || price.price * 0.999, asset.symbol)}</p>
-          </div>
-          <div>
-            <span className="text-muted-foreground">Cambio</span>
-            <p className={cn("font-mono", getChangeClass(price.changePercent))}>
-              {formatPercent(price.changePercent)}
-            </p>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ============ CHARTS TAB ============
-function ChartsTab() {
-  const [selectedAsset, setSelectedAsset] = useState(ASSETS[0]);
-  const [mounted, setMounted] = useState(false);
-  const [price, setPrice] = useState<PriceData | null>(null);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  // Fetch real prices from API
-  useEffect(() => {
-    if (!mounted) return;
-    
-    const fetchPrice = async () => {
-      try {
-        const response = await fetch('/api/prices');
-        const data = await response.json();
-        if (data.success && data.prices && data.prices[selectedAsset.symbol]) {
-          setPrice(data.prices[selectedAsset.symbol]);
-        }
-      } catch (error) {
-        console.error('Error fetching price:', error);
-        // Fallback
-        setPrice(generatePrice(selectedAsset.symbol));
-      }
-    };
-    
-    fetchPrice();
-    const interval = setInterval(fetchPrice, 3000); // Update every 3 seconds
-    return () => clearInterval(interval);
-  }, [selectedAsset.symbol, mounted]);
-
-  const chartConfigs = [
-    { id: '1D', name: 'Diario', purpose: 'Dirección', interval: 'D', height: 350 },
-    { id: '1H', name: '1 Hora', purpose: 'Estrategia', interval: '60', height: 320 },
-    { id: '5M', name: '5 Min', purpose: 'Ejecución', interval: '5', height: 300 },
-  ];
-
-  // TradingView widget URL with full toolbar enabled
-  const getTVWidgetUrl = (configId: string, symbol: string, interval: string) => {
-    const params = new URLSearchParams({
-      frameElementId: `tv_${configId}`,
-      symbol: getTVSymbol(symbol),
-      interval: interval,
-      hidesidetoolbar: '0', // Show side toolbar (drawing tools!)
-      hidetoptoolbar: '0',  // Show top toolbar
-      symboledit: '1',      // Allow symbol editing
-      saveimage: '1',       // Allow saving image
-      toolbarbg: '0a0a0a',
-      studies: '["EMA@tv-basicstudies"]',
-      theme: 'dark',
-      style: '1',
-      timezone: 'Etc/UTC',
-      withdateranges: '1',
-      hidevolume: '0',
-      allow_symbol_change: '1',
-      details: '1',
-      hotlist: '0',
-      calendar: '0',
-    });
-    return `https://s.tradingview.com/widgetembed/?${params.toString()}`;
-  };
-
-  if (!mounted) return null;
-
-  return (
-    <div className="flex flex-col h-full">
-      <div className="p-3 bg-card border-b border-border space-y-3">
-        <Select 
-          value={selectedAsset.symbol} 
-          onValueChange={(v) => setSelectedAsset(ASSETS.find(a => a.symbol === v) || ASSETS[0])}
-        >
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {ASSETS.map((asset) => (
-              <SelectItem key={asset.symbol} value={asset.symbol}>
-                {asset.symbol}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        
-        {price && (
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="font-mono text-lg font-bold">
-                {formatPrice(price.price, selectedAsset.symbol)}
-              </div>
-              <div className={cn("text-sm", getChangeClass(price.changePercent))}>
-                {formatPercent(price.changePercent)}
-              </div>
-            </div>
-            <Badge variant={price.change >= 0 ? 'bull' : 'bear'}>
-              {price.change >= 0 ? <TrendingUp className="w-4 h-4 mr-1" /> : <TrendingDown className="w-4 h-4 mr-1" />}
-              {price.change >= 0 ? 'Alcista' : 'Bajista'}
-            </Badge>
-          </div>
-        )}
-      </div>
-
-      <ScrollArea className="flex-1">
-        <div className="space-y-2 p-2 pb-8">
-          {chartConfigs.map((config) => (
-            <div key={config.id} className="bg-card rounded-lg border border-border overflow-hidden">
-              <div className="flex items-center justify-between px-3 py-2 bg-muted/50 border-b border-border">
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="text-xs font-bold">{config.id}</Badge>
-                  <span className="text-sm font-medium">{config.name}</span>
-                </div>
-                <span className="text-xs text-muted-foreground">{config.purpose}</span>
-              </div>
-              
-              <div style={{ height: config.height }} className="bg-black/20 relative">
-                <iframe
-                  src={getTVWidgetUrl(config.id, selectedAsset.symbol, config.interval)}
-                  style={{ width: '100%', height: '100%', border: 'none' }}
-                  allowFullScreen
-                  allow="clipboard-write"
-                />
-              </div>
-            </div>
-          ))}
-        </div>
-      </ScrollArea>
-    </div>
-  );
-}
-
-// ============ OPERATION TAB ============
-function OperationTab() {
-  const [selectedAsset, setSelectedAsset] = useState(ASSETS[0]);
-  const [selectedStrategy, setSelectedStrategy] = useState<'ema50' | 'candlestick' | 'smart_money'>('ema50');
-  const [mounted, setMounted] = useState(false);
-  const [decision, setDecision] = useState<ReturnType<typeof generateDecision> | null>(null);
-  const [currentPrice, setCurrentPrice] = useState<number | undefined>(undefined);
-  const [marketStatus, setMarketStatus] = useState<ReturnType<typeof getActiveSessions>>({
-    sessions: [], isWeekend: false, forexOpen: true, cryptoOpen: true
-  });
-
-  useEffect(() => {
-    setMounted(true);
-    setMarketStatus(getActiveSessions());
-  }, []);
-
-  // Fetch real prices every 3 seconds
-  useEffect(() => {
-    if (!mounted) return;
-    
-    const fetchPrice = async () => {
-      try {
-        const response = await fetch('/api/prices');
-        const data = await response.json();
-        if (data.success && data.prices && data.prices[selectedAsset.symbol]) {
-          const priceData = data.prices[selectedAsset.symbol];
-          setCurrentPrice(priceData.price);
-          // Update decision with real price
-          setDecision(generateDecision(selectedAsset.symbol, selectedStrategy, priceData.price));
-        }
-      } catch (error) {
-        console.error('Error fetching price:', error);
-      }
-    };
-    
-    fetchPrice();
-    const interval = setInterval(fetchPrice, 3000);
-    return () => clearInterval(interval);
-  }, [selectedAsset.symbol, selectedStrategy, mounted]);
-
-  if (!mounted) return null;
-
-  const currentStrategy = STRATEGIES.find(s => s.id === selectedStrategy);
-
-  return (
-    <div className="flex flex-col h-full">
-      {/* Asset Selector */}
-      <div className="p-3 bg-card border-b border-border">
-        <Select 
-          value={selectedAsset.symbol} 
-          onValueChange={(v) => setSelectedAsset(ASSETS.find(a => a.symbol === v) || ASSETS[0])}
-        >
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {ASSETS.map((asset) => (
-              <SelectItem key={asset.symbol} value={asset.symbol}>
-                {asset.symbol}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* Active Sessions */}
-      <div className="p-2 bg-muted/30 border-b border-border">
-        <div className="flex items-center gap-2 overflow-x-auto">
-          {SESSIONS.map((session) => {
-            const isActive = marketStatus.sessions.some(s => s.id === session.id);
-            return (
-              <Badge 
-                key={session.id} 
-                variant={isActive ? 'session' : 'outline'}
-                className="text-xs"
-              >
-                {session.shortName}
-                {isActive && <span className="w-1.5 h-1.5 bg-green-400 rounded-full ml-1 animate-pulse" />}
-              </Badge>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Strategy Selector */}
-      <div className="p-3 bg-card border-b border-border">
-        <div className="text-xs text-muted-foreground mb-2">Estrategia de Análisis</div>
-        <div className="flex gap-2">
-          {STRATEGIES.map((strategy) => {
-            const Icon = strategy.icon;
-            const isActive = selectedStrategy === strategy.id;
-            return (
-              <Button
-                key={strategy.id}
-                variant={isActive ? 'default' : 'outline'}
-                onClick={() => setSelectedStrategy(strategy.id as 'ema50' | 'candlestick' | 'smart_money')}
-                className="flex-1 flex flex-col items-center gap-1 h-auto py-2"
-              >
-                <Icon className="w-4 h-4" />
-                <span className="text-xs">{strategy.name}</span>
-              </Button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Chart - With tools enabled */}
-      <div className="flex-1 min-h-[350px] bg-black/20 relative">
-        <iframe
-          src={`https://s.tradingview.com/widgetembed/?frameElementId=tv_operation&symbol=${getTVSymbol(selectedAsset.symbol)}&interval=15&hidesidetoolbar=0&hidetoptoolbar=0&symboledit=1&saveimage=1&toolbarbg=0a0a0a&studies=%5B%22EMA%40tv-basicstudies%22%5D&theme=dark&style=1&timezone=Etc%2FUTC&withdateranges=1&hidevolume=0&allow_symbol_change=1&details=1`}
-          style={{ width: '100%', height: '100%', border: 'none', minHeight: '350px' }}
-          allowFullScreen
-          allow="clipboard-write"
-        />
-        
-        {/* Zone Drawer Button - Top Left */}
-        <div className="absolute top-2 left-2">
-          <ZoneDrawer 
-            symbol={selectedAsset.symbol} 
-            interval="15" 
-            currentPrice={currentPrice || 1}
+      <div className="grid grid-cols-3 gap-3">
+        <div>
+          <label className="text-xs text-zinc-400">Capital ($)</label>
+          <input
+            type="number"
+            value={capital}
+            onChange={(e) => setCapital(e.target.value)}
+            className="w-full p-2 bg-zinc-900/50 rounded-lg border border-zinc-700/50 text-sm mt-1 focus:border-red-500/50 focus:outline-none"
           />
         </div>
-        
-        {decision && decision.entry && (
-          <div className="absolute top-2 right-2 bg-background/90 backdrop-blur p-2 rounded-lg text-xs space-y-1">
-            {decision.takeProfit && (
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 bg-green-500 rounded" />
-                <span>TP: {formatPrice(decision.takeProfit, selectedAsset.symbol)}</span>
-              </div>
-            )}
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 bg-blue-500 rounded" />
-              <span>Entry: {formatPrice(decision.entry, selectedAsset.symbol)}</span>
-            </div>
-            {decision.stopLoss && (
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 bg-red-500 rounded" />
-                <span>SL: {formatPrice(decision.stopLoss, selectedAsset.symbol)}</span>
-              </div>
-            )}
-          </div>
-        )}
+        <div>
+          <label className="text-xs text-zinc-400">Riesgo (%)</label>
+          <input
+            type="number"
+            value={riskPercent}
+            onChange={(e) => setRiskPercent(e.target.value)}
+            className="w-full p-2 bg-zinc-900/50 rounded-lg border border-zinc-700/50 text-sm mt-1 focus:border-red-500/50 focus:outline-none"
+            step="0.5"
+            min="0.5"
+            max="5"
+          />
+        </div>
+        <div>
+          <label className="text-xs text-zinc-400">SL (pips)</label>
+          <input
+            type="number"
+            value={stopLossPips}
+            onChange={(e) => setStopLossPips(e.target.value)}
+            className="w-full p-2 bg-zinc-900/50 rounded-lg border border-zinc-700/50 text-sm mt-1 focus:border-red-500/50 focus:outline-none"
+          />
+        </div>
       </div>
-
-      {/* Operation Details */}
-      <div className="p-3 bg-card border-t border-border">
-        {decision ? (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <Badge 
-                variant={decision.action === 'BUY' ? 'bull' : decision.action === 'SELL' ? 'bear' : 'neutral'}
-                className="text-base px-4 py-1"
-              >
-                {decision.action === 'BUY' && <ArrowUpRight className="w-4 h-4 mr-1" />}
-                {decision.action === 'SELL' && <ArrowDownRight className="w-4 h-4 mr-1" />}
-                {decision.action}
-              </Badge>
-              <div className="text-right">
-                <span className="text-xs text-muted-foreground">Probabilidad</span>
-                <div className="font-bold">{decision.probability}%</div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-2">
-              {decision.entry && (
-                <Card className="bg-blue-500/10 border-blue-500/30">
-                  <CardContent className="p-2 text-center">
-                    <span className="text-xs text-blue-400">Entrada</span>
-                    <p className="font-mono text-sm">{formatPrice(decision.entry, selectedAsset.symbol)}</p>
-                  </CardContent>
-                </Card>
-              )}
-              {decision.stopLoss && (
-                <Card className="bg-red-500/10 border-red-500/30">
-                  <CardContent className="p-2 text-center">
-                    <span className="text-xs text-red-400">Stop Loss</span>
-                    <p className="font-mono text-sm">{formatPrice(decision.stopLoss, selectedAsset.symbol)}</p>
-                  </CardContent>
-                </Card>
-              )}
-              {decision.takeProfit && (
-                <Card className="bg-green-500/10 border-green-500/30">
-                  <CardContent className="p-2 text-center">
-                    <span className="text-xs text-green-400">Take Profit</span>
-                    <p className="font-mono text-sm">{formatPrice(decision.takeProfit, selectedAsset.symbol)}</p>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
-
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Riesgo/Beneficio</span>
-              <Badge variant="outline">1:{decision.riskReward}</Badge>
-            </div>
-          </div>
-        ) : (
-          <div className="text-center text-muted-foreground py-4">
-            Cargando...
-          </div>
-        )}
+      
+      <div className="grid grid-cols-3 gap-2 text-center mt-4">
+        <div className="p-3 bg-red-500/10 rounded-lg border border-red-500/20">
+          <p className="text-xs text-zinc-400">Riesgo Máx</p>
+          <p className="text-xl font-bold text-red-400">${riskAmount.toFixed(2)}</p>
+        </div>
+        <div className="p-3 bg-amber-500/10 rounded-lg border border-amber-500/20">
+          <p className="text-xs text-zinc-400">Valor/Pip</p>
+          <p className="text-xl font-bold text-amber-400">${valuePerPip.toFixed(2)}</p>
+        </div>
+        <div className="p-3 bg-emerald-500/10 rounded-lg border border-emerald-500/20">
+          <p className="text-xs text-zinc-400">Lotes</p>
+          <p className="text-xl font-bold text-emerald-400">{lotSize.toFixed(2)}</p>
+        </div>
       </div>
     </div>
-  );
+  )
 }
 
-// ============ AI ANALYSIS TAB ============
-function AIAnalysisTab() {
-  const [selectedAsset, setSelectedAsset] = useState(ASSETS[0]);
-  const [selectedStrategy, setSelectedStrategy] = useState<'ema50' | 'candlestick' | 'smart_money'>('ema50');
-  const [mounted, setMounted] = useState(false);
-  const [decision, setDecision] = useState<ReturnType<typeof generateDecision> | null>(null);
-  const [currentPrice, setCurrentPrice] = useState<number | undefined>(undefined);
-  const [marketStatus, setMarketStatus] = useState<ReturnType<typeof getActiveSessions>>({
-    sessions: [], isWeekend: false, forexOpen: true, cryptoOpen: true
-  });
+// ============================================
+// QUIZ COMPONENT
+// ============================================
 
-  useEffect(() => {
-    setMounted(true);
-    setMarketStatus(getActiveSessions());
-  }, []);
+function QuizSection({ quiz, moduleId, onComplete }: { 
+  quiz: QuizQuestion[]
+  moduleId: string
+  onComplete: (score: number) => void 
+}) {
+  const [currentQ, setCurrentQ] = useState(0)
+  const [selected, setSelected] = useState<number | null>(null)
+  const [showResult, setShowResult] = useState(false)
+  const [score, setScore] = useState(0)
+  const [answered, setAnswered] = useState(false)
 
-  // Fetch real prices every 3 seconds
-  useEffect(() => {
-    if (!mounted) return;
-    
-    const fetchPrice = async () => {
-      try {
-        const response = await fetch('/api/prices');
-        const data = await response.json();
-        if (data.success && data.prices && data.prices[selectedAsset.symbol]) {
-          const priceData = data.prices[selectedAsset.symbol];
-          setCurrentPrice(priceData.price);
-          // Update decision with real price
-          setDecision(generateDecision(selectedAsset.symbol, selectedStrategy, priceData.price));
-        }
-      } catch (error) {
-        console.error('Error fetching price:', error);
-      }
-    };
-    
-    fetchPrice();
-    const interval = setInterval(fetchPrice, 3000);
-    return () => clearInterval(interval);
-  }, [selectedAsset.symbol, selectedStrategy, mounted]);
+  const question = quiz[currentQ]
 
-  if (!mounted) return null;
+  const handleAnswer = (index: number) => {
+    if (answered) return
+    setSelected(index)
+    setAnswered(true)
+    if (index === question.correctAnswer) {
+      setScore(s => s + 1)
+    }
+  }
 
-  const currentStrategy = STRATEGIES.find(s => s.id === selectedStrategy);
+  const nextQuestion = () => {
+    if (currentQ < quiz.length - 1) {
+      setCurrentQ(c => c + 1)
+      setSelected(null)
+      setAnswered(false)
+    } else {
+      setShowResult(true)
+      onComplete(Math.round((score / quiz.length) * 100))
+    }
+  }
 
-  return (
-    <div className="flex flex-col h-full">
-      {/* Asset Selector */}
-      <div className="p-3 bg-card border-b border-border">
-        <Select 
-          value={selectedAsset.symbol} 
-          onValueChange={(v) => setSelectedAsset(ASSETS.find(a => a.symbol === v) || ASSETS[0])}
-        >
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {ASSETS.map((asset) => (
-              <SelectItem key={asset.symbol} value={asset.symbol}>
-                {asset.symbol}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* Active Sessions */}
-      <div className="p-2 bg-muted/30 border-b border-border">
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-muted-foreground">Sesiones Activas</span>
-          <div className="flex gap-2">
-            {SESSIONS.map((session) => {
-              const isActive = marketStatus.sessions.some(s => s.id === session.id);
-              return (
-                <Badge 
-                  key={session.id} 
-                  variant={isActive ? 'session' : 'outline'}
-                  className="text-xs"
-                >
-                  {session.shortName}
-                  {isActive && <span className="w-1.5 h-1.5 bg-green-400 rounded-full ml-1 animate-pulse" />}
-                </Badge>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      {/* Strategy Selector */}
-      <div className="p-3 bg-card border-b border-border">
-        <div className="text-xs text-muted-foreground mb-2">Estrategia de Análisis</div>
-        <div className="flex gap-2">
-          {STRATEGIES.map((strategy) => {
-            const Icon = strategy.icon;
-            const isActive = selectedStrategy === strategy.id;
-            return (
-              <Button
-                key={strategy.id}
-                variant={isActive ? 'default' : 'outline'}
-                onClick={() => setSelectedStrategy(strategy.id as 'ema50' | 'candlestick' | 'smart_money')}
-                className="flex-1 flex flex-col items-center gap-1 h-auto py-2"
-              >
-                <Icon className="w-4 h-4" />
-                <span className="text-xs">{strategy.name}</span>
-              </Button>
-            );
-          })}
-        </div>
-        {currentStrategy && (
-          <div className="text-xs text-muted-foreground mt-2 text-center">
-            {currentStrategy.description}
-          </div>
-        )}
-      </div>
-
-      <ScrollArea className="flex-1">
-        <div className="p-3 space-y-4">
-          {decision ? (
-            <>
-              {/* Market & Strategy Info */}
-              <Card className="bg-gradient-to-r from-primary/10 to-primary/5">
-                <CardContent className="p-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="text-xs text-muted-foreground">Mercado</div>
-                      <div className="font-bold text-lg">{selectedAsset.symbol}</div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-xs text-muted-foreground">Estrategia</div>
-                      <div className="font-semibold flex items-center gap-1">
-                        {currentStrategy && <currentStrategy.icon className="w-4 h-4" />}
-                        {currentStrategy?.name}
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Final Decision */}
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="flex items-center gap-2">
-                    <Brain className="w-5 h-5 text-primary" />
-                    Decisión Final
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center justify-between mb-4">
-                    <Badge 
-                      variant={decision.action === 'BUY' ? 'bull' : decision.action === 'SELL' ? 'bear' : 'neutral'}
-                      className="text-lg px-6 py-2"
-                    >
-                      {decision.action}
-                    </Badge>
-                    <div className="text-right">
-                      <div className="text-2xl font-bold">{decision.probability}%</div>
-                      <div className="text-xs text-muted-foreground">Probabilidad</div>
-                    </div>
-                  </div>
-                  <Progress value={decision.probability} className="h-3" />
-                </CardContent>
-              </Card>
-
-              {/* Strategy Analysis */}
-              <Card className="border-primary/30">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    {currentStrategy && <currentStrategy.icon className="w-4 h-4" />}
-                    {decision.strategyAnalysis}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-2 text-sm">
-                  {decision.strategyConditions.map((condition, i) => (
-                    <div key={i} className="flex items-center justify-between py-1 border-b border-border/50 last:border-0">
-                      <span className="text-muted-foreground">{condition.label}</span>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs">{condition.value}</span>
-                        {condition.status ? 
-                          <CheckCircle className="w-4 h-4 text-green-500" /> : 
-                          <XCircle className="w-4 h-4 text-muted-foreground" />
-                        }
-                      </div>
-                    </div>
-                  ))}
-                  
-                  {decision.entryReason && (
-                    <div className="mt-3 p-3 bg-muted rounded-lg">
-                      <div className="text-xs text-muted-foreground mb-1">Razón de entrada:</div>
-                      <span className="text-sm">{decision.entryReason}</span>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Multi-Timeframe Analysis */}
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Clock className="w-4 h-4" />
-                    Análisis Multi-Temporalidad
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {/* 1D */}
-                  <div className="flex items-center justify-between text-sm">
-                    <div className="flex items-center gap-2">
-                      <Badge variant="outline">1D</Badge>
-                      <span className="text-muted-foreground">Dirección</span>
-                    </div>
-                    <Badge variant={decision.direction === 'bullish' ? 'bull' : decision.direction === 'bearish' ? 'bear' : 'neutral'}>
-                      {decision.direction === 'bullish' ? 'Alcista' : decision.direction === 'bearish' ? 'Bajista' : 'Lateral'}
-                    </Badge>
-                  </div>
-                  
-                  {/* 1H */}
-                  <div className="flex items-center justify-between text-sm">
-                    <div className="flex items-center gap-2">
-                      <Badge variant="outline">1H</Badge>
-                      <span className="text-muted-foreground">Estrategia</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {decision.timeframes['1H'].impulse ? 
-                        <CheckCircle className="w-4 h-4 text-green-500" /> : 
-                        <XCircle className="w-4 h-4 text-muted-foreground" />
-                      }
-                      <span>Impulso</span>
-                      {decision.timeframes['1H'].pullback ? 
-                        <CheckCircle className="w-4 h-4 text-green-500 ml-2" /> : 
-                        <XCircle className="w-4 h-4 text-muted-foreground ml-2" />
-                      }
-                      <span>Retroceso</span>
-                    </div>
-                  </div>
-                  
-                  {/* 5M */}
-                  <div className="flex items-center justify-between text-sm">
-                    <div className="flex items-center gap-2">
-                      <Badge variant="outline">5M</Badge>
-                      <span className="text-muted-foreground">Ejecución</span>
-                    </div>
-                    <Badge variant={decision.timeframes['5M'].confirmed ? 'bull' : 'neutral'}>
-                      {decision.timeframes['5M'].confirmed ? 'Confirmado' : 'Pendiente'}
-                    </Badge>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Trade Summary */}
-              {decision.action !== 'WAIT' && decision.entry && (
-                <Card className="border-primary/50">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-base flex items-center gap-2">
-                      <DollarSign className="w-4 h-4" />
-                      Resumen de Operación
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-3 gap-2 text-center">
-                      <div className="space-y-1">
-                        <Badge variant="outline" className="bg-blue-500/10">ENTRY</Badge>
-                        <p className="font-mono text-lg">{formatPrice(decision.entry, selectedAsset.symbol)}</p>
-                      </div>
-                      <div className="space-y-1">
-                        <Badge variant="outline" className="bg-red-500/10">SL</Badge>
-                        <p className="font-mono text-lg">{formatPrice(decision.stopLoss || 0, selectedAsset.symbol)}</p>
-                      </div>
-                      <div className="space-y-1">
-                        <Badge variant="outline" className="bg-green-500/10">TP</Badge>
-                        <p className="font-mono text-lg">{formatPrice(decision.takeProfit || 0, selectedAsset.symbol)}</p>
-                      </div>
-                    </div>
-                    <div className="mt-4 p-3 bg-muted rounded-lg text-center">
-                      <span className="text-muted-foreground">Riesgo/Beneficio: </span>
-                      <span className="font-bold text-primary">1:{decision.riskReward}</span>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-            </>
+  if (showResult) {
+    const percentage = Math.round((score / quiz.length) * 100)
+    return (
+      <div className="bg-gradient-to-br from-purple-500/10 to-purple-500/5 border border-purple-500/30 rounded-xl p-6 text-center">
+        <div className="mb-4">
+          {percentage >= 80 ? (
+            <Trophy className="w-16 h-16 text-yellow-400 mx-auto" />
+          ) : percentage >= 50 ? (
+            <Star className="w-16 h-16 text-blue-400 mx-auto" />
           ) : (
-            <div className="text-center text-muted-foreground py-8">
-              Cargando análisis...
-            </div>
+            <AlertTriangle className="w-16 h-16 text-amber-400 mx-auto" />
           )}
         </div>
-      </ScrollArea>
-    </div>
-  );
-}
-
-// ============ NEWS TAB ============
-interface NewsItem {
-  id: string;
-  title: string;
-  source: string;
-  date: string;
-  url: string;
-  sentiment: 'positive' | 'negative' | 'neutral';
-  sentimentLabel: string;
-  image: string | null;
-}
-
-interface NewsData {
-  articles: NewsItem[];
-  summary: { positive: number; negative: number; neutral: number };
-  highVolatility: boolean;
-  lastUpdate: string;
-}
-
-function NewsTab() {
-  const [selectedCurrency, setSelectedCurrency] = useState('all');
-  const [mounted, setMounted] = useState(false);
-  const [news, setNews] = useState<NewsData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  // Fetch real news every 60 seconds
-  useEffect(() => {
-    if (!mounted) return;
-
-    const fetchNews = async () => {
-      try {
-        const response = await fetch('/api/news');
-        const data = await response.json();
-        setNews(data);
-        setLastUpdate(new Date());
-      } catch (error) {
-        console.error('Error fetching news:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchNews();
-    const interval = setInterval(fetchNews, 60000); // Update every 60 seconds
-    return () => clearInterval(interval);
-  }, [mounted]);
-
-  const currencies = [
-    { id: 'all', name: 'Todas' },
-    { id: 'USD', name: 'USD' },
-    { id: 'EUR', name: 'EUR' },
-    { id: 'GBP', name: 'GBP' },
-    { id: 'JPY', name: 'JPY' },
-    { id: 'BTC', name: 'Crypto' },
-  ];
-
-  // Filter news by currency keyword
-  const filteredNews = selectedCurrency === 'all' 
-    ? (news?.articles || [])
-    : (news?.articles || []).filter(n => {
-        const title = n.title.toLowerCase();
-        const currencyKeywords: Record<string, string[]> = {
-          'USD': ['dollar', 'usd', 'fed', 'federal reserve', 'us economy'],
-          'EUR': ['euro', 'eur', 'ecb', 'european central', 'europe'],
-          'GBP': ['pound', 'gbp', 'boe', 'bank of england', 'uk', 'britain'],
-          'JPY': ['yen', 'jpy', 'boj', 'bank of japan', 'japan'],
-          'BTC': ['bitcoin', 'btc', 'crypto', 'cryptocurrency']
-        };
-        return currencyKeywords[selectedCurrency]?.some(k => title.includes(k)) || false;
-      });
-
-  if (!mounted) return null;
+        <h3 className="text-2xl font-bold mb-2">¡Quiz Completado!</h3>
+        <p className="text-4xl font-bold text-purple-400 mb-2">{percentage}%</p>
+        <p className="text-zinc-400">{score} de {quiz.length} correctas</p>
+        {percentage < 50 && (
+          <p className="text-sm text-amber-400 mt-2">Te recomendamos repasar el módulo</p>
+        )}
+      </div>
+    )
+  }
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Header with last update time */}
-      <div className="p-3 bg-card border-b border-border">
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2">
-            <Newspaper className="w-4 h-4 text-muted-foreground" />
-            <span className="text-xs text-muted-foreground">Noticias en Tiempo Real</span>
+    <div className="bg-gradient-to-br from-purple-500/10 to-purple-500/5 border border-purple-500/30 rounded-xl p-4">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="font-semibold">Quiz</h3>
+        <span className="text-sm text-zinc-400">{currentQ + 1}/{quiz.length}</span>
+      </div>
+      <p className="font-medium mb-4">{question.question}</p>
+      
+      <div className="space-y-2">
+        {question.options.map((option, index) => {
+          const isSelected = selected === index
+          const isCorrect = index === question.correctAnswer
+          const showCorrect = answered && isCorrect
+          const showWrong = answered && isSelected && !isCorrect
+          
+          return (
+            <button
+              key={index}
+              onClick={() => handleAnswer(index)}
+              className={`w-full p-3 rounded-lg text-left text-sm transition-all ${
+                showCorrect ? 'bg-emerald-500/20 border-emerald-500/50 border' :
+                showWrong ? 'bg-red-500/20 border-red-500/50 border' :
+                isSelected ? 'bg-purple-500/20 border-purple-500/50 border' :
+                'bg-zinc-800/50 border border-zinc-700/50 hover:bg-zinc-700/50'
+              }`}
+            >
+              {option}
+            </button>
+          )
+        })}
+      </div>
+
+      {answered && (
+        <>
+          <div className={`p-3 rounded-lg mt-4 ${selected === question.correctAnswer ? 'bg-emerald-500/10' : 'bg-amber-500/10'}`}>
+            <p className="text-sm">{question.explanation}</p>
           </div>
-          {lastUpdate && (
-            <div className="flex items-center gap-1">
-              <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-              <span className="text-xs text-muted-foreground">
-                {lastUpdate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
-              </span>
-            </div>
-          )}
+          <button 
+            onClick={nextQuestion}
+            className="w-full mt-4 py-2 px-4 bg-purple-500 hover:bg-purple-600 rounded-lg font-medium transition-colors"
+          >
+            {currentQ < quiz.length - 1 ? 'Siguiente Pregunta' : 'Ver Resultado'}
+          </button>
+        </>
+      )}
+    </div>
+  )
+}
+
+// ============================================
+// LESSON VIEW
+// ============================================
+
+function LessonView({ lesson, onBack, onComplete }: { 
+  lesson: Lesson
+  onBack: () => void
+  onComplete: () => void 
+}) {
+  return (
+    <div className="space-y-4 animate-fadeIn">
+      <button onClick={onBack} className="flex items-center gap-1 text-zinc-400 hover:text-white transition-colors">
+        <ChevronLeft className="w-4 h-4" />
+        <span className="text-sm">Volver</span>
+      </button>
+
+      <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-5">
+        <h2 className="text-xl font-bold mb-4">{lesson.title}</h2>
+        <div className="whitespace-pre-line text-sm leading-relaxed text-zinc-300">
+          {lesson.content}
         </div>
         
-        {/* Currency Filter */}
-        <div className="flex gap-2 overflow-x-auto">
-          {currencies.map((currency) => (
-            <Button
-              key={currency.id}
-              variant={selectedCurrency === currency.id ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setSelectedCurrency(currency.id)}
-            >
-              {currency.name}
-            </Button>
-          ))}
+        {lesson.example && (
+          <div className="mt-4 p-4 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+            <div className="flex items-start gap-2">
+              <Lightbulb className="w-4 h-4 text-amber-400 mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="text-xs font-medium text-amber-400 mb-1">Ejemplo práctico:</p>
+                <p className="text-sm text-amber-300">{lesson.example}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <button 
+          onClick={onComplete}
+          className="w-full mt-5 py-3 px-4 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 rounded-lg font-medium transition-all flex items-center justify-center gap-2"
+        >
+          <Check className="w-4 h-4" />
+          Marcar como completado
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ============================================
+// MODULE VIEW
+// ============================================
+
+function ModuleView({ module: mod, progress, onBack, onLessonComplete, onQuizComplete }: {
+  module: Module
+  progress: UserProgress
+  onBack: () => void
+  onLessonComplete: (moduleId: string, lessonId: string) => void
+  onQuizComplete: (moduleId: string, score: number) => void
+}) {
+  const [activeLesson, setActiveLesson] = useState<Lesson | null>(null)
+  const [showQuiz, setShowQuiz] = useState(false)
+  
+  const Icon = mod.icon
+  const completedLessons = progress.completedLessons.filter(l => mod.lessons.some(ml => ml.id === l)).length
+  const totalLessons = mod.lessons.length
+  const progressPercent = (completedLessons / totalLessons) * 100
+
+  if (activeLesson) {
+    return (
+      <LessonView 
+        lesson={activeLesson} 
+        onBack={() => setActiveLesson(null)}
+        onComplete={() => {
+          onLessonComplete(mod.id, activeLesson.id)
+          setActiveLesson(null)
+        }}
+      />
+    )
+  }
+
+  if (showQuiz && mod.quiz) {
+    return (
+      <div className="space-y-4 animate-fadeIn">
+        <button onClick={() => setShowQuiz(false)} className="flex items-center gap-1 text-zinc-400 hover:text-white transition-colors">
+          <ChevronLeft className="w-4 h-4" />
+          <span className="text-sm">Volver al módulo</span>
+        </button>
+        <QuizSection 
+          quiz={mod.quiz} 
+          moduleId={mod.id}
+          onComplete={(score) => {
+            onQuizComplete(mod.id, score)
+            setShowQuiz(false)
+          }}
+        />
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-4 animate-fadeIn">
+      <button onClick={onBack} className="flex items-center gap-1 text-zinc-400 hover:text-white transition-colors">
+        <ChevronLeft className="w-4 h-4" />
+        <span className="text-sm">Volver a módulos</span>
+      </button>
+
+      {/* Module Header */}
+      <div className={`${mod.bgColor} border-2 border-zinc-700/50 rounded-xl p-5`}>
+        <div className="flex items-center gap-4 mb-4">
+          <div className="p-3 rounded-xl bg-zinc-900/50">
+            <Icon className={`w-7 h-7 ${mod.color}`} />
+          </div>
+          <div className="flex-1">
+            <h2 className="text-xl font-bold">{mod.title}</h2>
+            <p className="text-sm text-zinc-400">{mod.description}</p>
+          </div>
+        </div>
+        
+        <div className="space-y-2">
+          <div className="flex justify-between text-sm">
+            <span className="text-zinc-400">Progreso</span>
+            <span className="font-medium">{completedLessons}/{totalLessons} lecciones</span>
+          </div>
+          <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
+            <div 
+              className="h-full bg-gradient-to-r from-amber-500 to-amber-400"
+              style={{ width: `${progressPercent}%` }}
+            />
+          </div>
         </div>
       </div>
 
-      {/* Sentiment Summary */}
-      {news && (
-        <div className="p-3 bg-muted/30 border-b border-border">
+      {/* Lessons List */}
+      <div className="space-y-2">
+        {mod.lessons.map((lesson, index) => {
+          const isCompleted = progress.completedLessons.includes(lesson.id)
+          
+          return (
+            <button
+              key={lesson.id}
+              onClick={() => setActiveLesson(lesson)}
+              className={`w-full p-4 rounded-xl text-left transition-all hover:scale-[1.01] ${
+                isCompleted ? 'bg-emerald-500/10 border border-emerald-500/20' : 'bg-zinc-900/50 border border-zinc-800'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                  isCompleted ? 'bg-emerald-500' : 'bg-zinc-800'
+                }`}>
+                  {isCompleted ? (
+                    <Check className="w-4 h-4 text-white" />
+                  ) : (
+                    <span className="text-sm font-medium">{index + 1}</span>
+                  )}
+                </div>
+                <div className="flex-1">
+                  <p className="font-medium">{lesson.title}</p>
+                  <p className="text-xs text-zinc-500">Lección {index + 1}</p>
+                </div>
+                <ChevronRight className="w-5 h-5 text-zinc-500" />
+              </div>
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Quiz Button */}
+      {mod.quiz && completedLessons === totalLessons && (
+        <div className="bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/20 rounded-xl p-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-1">
-                <div className="w-3 h-3 bg-green-500 rounded-full" />
-                <span className="text-xs">{news.summary.positive} Positivas</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <div className="w-3 h-3 bg-red-500 rounded-full" />
-                <span className="text-xs">{news.summary.negative} Negativas</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <div className="w-3 h-3 bg-yellow-500 rounded-full" />
-                <span className="text-xs">{news.summary.neutral} Neutrales</span>
+            <div className="flex items-center gap-3">
+              <Trophy className="w-8 h-8 text-yellow-400" />
+              <div>
+                <p className="font-bold">¡Módulo completado!</p>
+                <p className="text-sm text-zinc-400">Haz el quiz para ganar tu insignia</p>
               </div>
             </div>
-            {news.highVolatility && (
-              <Badge variant="bear" className="text-xs animate-pulse">
-                <Zap className="w-3 h-3 mr-1" />
-                Alta Volatilidad
-              </Badge>
-            )}
+            <button 
+              onClick={() => setShowQuiz(true)}
+              className="py-2 px-4 bg-purple-500 hover:bg-purple-600 rounded-lg font-medium transition-colors flex items-center gap-2"
+            >
+              Hacer Quiz
+            </button>
           </div>
         </div>
       )}
 
-      {/* News List */}
-      <ScrollArea className="flex-1">
-        <div className="p-3 space-y-3">
-          {loading ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <Activity className="w-8 h-8 mx-auto mb-2 animate-pulse" />
-              <p>Cargando noticias...</p>
-            </div>
-          ) : filteredNews.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <Newspaper className="w-8 h-8 mx-auto mb-2" />
-              <p>No hay noticias para este filtro</p>
-            </div>
-          ) : (
-            filteredNews.map((item) => (
-              <Card 
-                key={item.id} 
-                className="cursor-pointer hover:bg-accent/50 transition-colors"
-                onClick={() => item.url && window.open(item.url, '_blank')}
-              >
-                <CardContent className="p-3">
-                  <div className="flex items-start gap-3">
-                    <div className={cn("w-2 h-2 rounded-full mt-2 flex-shrink-0", 
-                      item.sentiment === 'positive' ? 'bg-green-500' : 
-                      item.sentiment === 'negative' ? 'bg-red-500' : 'bg-yellow-500'
-                    )} />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-1">
-                        <Badge 
-                          variant={item.sentiment === 'positive' ? 'bull' : item.sentiment === 'negative' ? 'bear' : 'neutral'}
-                          className="text-xs"
-                        >
-                          {item.sentimentLabel}
-                        </Badge>
-                        <span className="text-xs text-muted-foreground">{item.date}</span>
-                      </div>
-                      <h3 className="font-semibold text-sm mb-1 line-clamp-2">{item.title}</h3>
-                      <div className="flex items-center justify-between mt-2">
-                        <span className="text-xs text-muted-foreground">{item.source}</span>
-                        <ArrowUpRight className="w-3 h-3 text-muted-foreground" />
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))
-          )}
-        </div>
-      </ScrollArea>
-
-      {/* Auto-refresh indicator */}
-      <div className="p-2 bg-muted/50 border-t border-border">
-        <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
-          <Clock className="w-3 h-3" />
-          <span>Actualización automática cada 60 segundos</span>
-        </div>
-      </div>
+      {/* Risk Calculator for Risk Module */}
+      {mod.id === 'riesgo' && <RiskCalculator />}
     </div>
-  );
+  )
 }
 
-// ============ MAIN APP ============
-export default function TradeMindAI() {
-  const [activeTab, setActiveTab] = useState('dashboard');
-  const [mounted, setMounted] = useState(false);
-  const [updateAvailable, setUpdateAvailable] = useState(false);
-  const [updating, setUpdating] = useState(false);
-  const [currentVersion, setCurrentVersion] = useState<string>('');
-  const [initialVersion, setInitialVersion] = useState<string>('');
+// ============================================
+// MAIN LEARN SCREEN
+// ============================================
 
-  // Check server version for deployments
-  const checkServerVersion = async () => {
-    try {
-      const response = await fetch('/api/version?t=' + Date.now());
-      const data = await response.json();
-      
-      if (!initialVersion) {
-        setInitialVersion(data.deployedAt);
-        setCurrentVersion(data.deployedAt);
-        return;
-      }
-      
-      // If server has newer version, trigger update
-      if (data.deployedAt !== initialVersion) {
-        console.log('[App] New deployment detected!', data.deployedAt, 'vs', initialVersion);
-        setUpdateAvailable(true);
-        setCurrentVersion(data.deployedAt);
-      }
-    } catch (error) {
-      console.error('[App] Version check error:', error);
-    }
-  };
+function LearnScreen() {
+  const [activeModule, setActiveModule] = useState<Module | null>(null)
+  const [progress, setProgress] = useState<UserProgress>({
+    completedLessons: [],
+    completedModules: [],
+    quizScores: {}
+  })
+  const [isLoading, setIsLoading] = useState(true)
 
+  // Load progress from localStorage
   useEffect(() => {
-    setMounted(true);
-
-    // Check server version immediately
-    checkServerVersion();
-
-    // Check for Service Worker updates - AGGRESSIVE UPDATE STRATEGY
-    if ('serviceWorker' in navigator) {
-      
-      // Register service worker with update check
-      navigator.serviceWorker.register('/sw.js', { 
-        scope: '/',
-        updateViaCache: 'none' // Always check for SW updates
-      }).then((registration) => {
-        console.log('[App] SW registered:', registration.scope);
-        
-        // Force update check immediately
-        registration.update();
-        
-        // Listen for new versions
-        registration.addEventListener('updatefound', () => {
-          const newWorker = registration.installing;
-          if (newWorker) {
-            newWorker.addEventListener('statechange', () => {
-              console.log('[App] SW state:', newWorker.state);
-              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                console.log('[App] New SW version available!');
-                setUpdateAvailable(true);
-              }
-            });
-          }
-        });
-      });
-
-      // Listen for messages from service worker
-      navigator.serviceWorker.addEventListener('message', (event) => {
-        if (event.data && event.data.type === 'SW_UPDATED') {
-          console.log('[App] SW updated message received:', event.data.version);
-          setUpdateAvailable(true);
-          setCurrentVersion(event.data.version);
-        }
-      });
-
-      // Check for controller change (new SW activated)
-      navigator.serviceWorker.addEventListener('controllerchange', () => {
-        console.log('[App] Controller changed - new SW active');
-        window.location.reload();
-      });
-
-      // Check for updates frequently (every 30 seconds)
-      const updateInterval = setInterval(() => {
-        navigator.serviceWorker.getRegistration().then((reg) => {
-          if (reg) {
-            reg.update();
-          }
-        });
-        // Also check server version
-        checkServerVersion();
-      }, 30000);
-
-      // Initial cache clear for fresh start
-      if ('caches' in window) {
-        caches.keys().then((cacheNames) => {
-          const oldCaches = cacheNames.filter(name => 
-            name.startsWith('trademind-ai-') && cacheNames.length > 1
-          );
-          if (oldCaches.length > 0) {
-            console.log('[App] Found old caches, clearing...');
-            oldCaches.forEach(name => caches.delete(name));
-          }
-        });
-      }
-
-      return () => clearInterval(updateInterval);
-    }
-  }, []);
-
-  // Force update - COMPLETE REFRESH
-  const handleUpdate = async () => {
-    setUpdating(true);
-    console.log('[App] Force update initiated...');
-    
     try {
-      // 1. Clear ALL caches
-      if ('caches' in window) {
-        const cacheNames = await caches.keys();
-        console.log('[App] Clearing caches:', cacheNames);
-        await Promise.all(cacheNames.map(name => caches.delete(name)));
+      const saved = localStorage.getItem('trademind-learn-progress')
+      if (saved) {
+        setProgress(JSON.parse(saved))
       }
-      
-      // 2. Unregister ALL service workers
-      if ('serviceWorker' in navigator) {
-        const registrations = await navigator.serviceWorker.getRegistrations();
-        console.log('[App] Unregistering SWs:', registrations.length);
-        for (const reg of registrations) {
-          await reg.unregister();
-        }
-      }
-      
-      // 3. Clear localStorage and sessionStorage for fresh state
-      localStorage.clear();
-      sessionStorage.clear();
-      
-      // 4. Hard reload (bypass cache)
-      console.log('[App] Reloading...');
-      window.location.href = window.location.href.split('?')[0] + '?t=' + Date.now();
-    } catch (error) {
-      console.error('[App] Update error:', error);
-      window.location.reload();
+    } catch (e) {
+      console.error('Error loading progress')
     }
-  };
+    setIsLoading(false)
+  }, [])
 
-  const tabs = [
-    { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
-    { id: 'charts', label: 'Gráficos', icon: Activity },
-    { id: 'operation', label: 'Operación', icon: Target },
-    { id: 'analysis', label: 'Análisis IA', icon: Brain },
-    { id: 'news', label: 'Noticias', icon: Newspaper },
-  ];
+  // Save progress
+  const saveProgress = useCallback((newProgress: UserProgress) => {
+    setProgress(newProgress)
+    try {
+      localStorage.setItem('trademind-learn-progress', JSON.stringify(newProgress))
+    } catch (e) {
+      console.error('Error saving progress')
+    }
+  }, [])
 
-  if (!mounted) {
+  const handleLessonComplete = useCallback((moduleId: string, lessonId: string) => {
+    const newCompletedLessons = [...progress.completedLessons]
+    if (!newCompletedLessons.includes(lessonId)) {
+      newCompletedLessons.push(lessonId)
+    }
+    saveProgress({
+      ...progress,
+      completedLessons: newCompletedLessons
+    })
+  }, [progress, saveProgress])
+
+  const handleQuizComplete = useCallback((moduleId: string, score: number) => {
+    saveProgress({
+      ...progress,
+      quizScores: { ...progress.quizScores, [moduleId]: score },
+      completedModules: progress.completedModules.includes(moduleId) 
+        ? progress.completedModules 
+        : [...progress.completedModules, moduleId]
+    })
+  }, [progress, saveProgress])
+
+  // Calculate overall progress
+  const totalLessons = MODULES.reduce((acc, m) => acc + m.lessons.length, 0)
+  const completedCount = progress.completedLessons.length
+  const overallProgress = (completedCount / totalLessons) * 100
+
+  if (activeModule) {
     return (
-      <div className="flex items-center justify-center h-screen bg-background">
-        <Activity className="w-8 h-8 animate-pulse text-primary" />
-      </div>
-    );
+      <ModuleView 
+        module={activeModule}
+        progress={progress}
+        onBack={() => setActiveModule(null)}
+        onLessonComplete={handleLessonComplete}
+        onQuizComplete={handleQuizComplete}
+      />
+    )
   }
 
   return (
-    <div className="flex flex-col h-screen bg-background">
+    <div className="space-y-5 animate-fadeIn">
       {/* Header */}
-      <header className="flex items-center justify-between p-3 border-b border-border bg-card">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-            <TrendingUp className="w-5 h-5 text-primary-foreground" />
-          </div>
-          <h1 className="font-bold text-lg">TradeMind AI</h1>
+      <div className="text-center">
+        <div className="flex items-center justify-center gap-2 mb-2">
+          <GraduationCap className="w-7 h-7 text-amber-400" />
+          <h1 className="text-2xl font-bold">Aprende Trading</h1>
         </div>
-        <div className="flex items-center gap-2">
-          {/* Update Button */}
-          {updateAvailable ? (
-            <Button 
-              size="sm" 
-              variant="default" 
-              onClick={handleUpdate}
-              disabled={updating}
-              className="text-xs bg-green-600 hover:bg-green-700 animate-pulse"
+        <p className="text-sm text-zinc-400">Domina el trading paso a paso</p>
+      </div>
+
+      {/* Overall Progress */}
+      <div className="bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20 rounded-xl p-4">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <Trophy className="w-5 h-5 text-amber-400" />
+            <span className="font-medium">Tu progreso</span>
+          </div>
+          <span className="text-sm font-bold">{Math.round(overallProgress)}%</span>
+        </div>
+        <div className="h-3 bg-zinc-800 rounded-full overflow-hidden">
+          <div 
+            className="h-full bg-gradient-to-r from-amber-500 to-amber-400"
+            style={{ width: `${overallProgress}%` }}
+          />
+        </div>
+        <p className="text-xs text-zinc-400 mt-2">
+          {completedCount} de {totalLessons} lecciones completadas
+        </p>
+      </div>
+
+      {/* Modules Grid */}
+      <div className="space-y-3">
+        {MODULES.map((mod) => {
+          const Icon = mod.icon
+          const modLessons = mod.lessons.length
+          const modCompleted = progress.completedLessons.filter(l => 
+            mod.lessons.some(ml => ml.id === l)
+          ).length
+          const isCompleted = modCompleted === modLessons
+          const quizScore = progress.quizScores[mod.id]
+
+          return (
+            <button
+              key={mod.id}
+              onClick={() => setActiveModule(mod)}
+              className={`w-full p-4 rounded-xl text-left transition-all hover:scale-[1.01] active:scale-[0.99] ${
+                isCompleted ? 'bg-gradient-to-r from-emerald-500/10 to-emerald-500/5 border border-emerald-500/20' : 'bg-zinc-900/50 border border-zinc-800'
+              }`}
             >
-              {updating ? (
-                <>
-                  <RefreshCw className="w-3 h-3 mr-1 animate-spin" />
-                  Actualizando...
-                </>
-              ) : (
-                <>
-                  <RefreshCw className="w-3 h-3 mr-1" />
-                  ¡Nueva versión!
-                </>
-              )}
-            </Button>
-          ) : (
-            <Button 
-              size="sm" 
-              variant="ghost" 
-              onClick={handleUpdate}
-              className="text-xs"
-              title="Forzar actualización"
-            >
-              <RefreshCw className="w-3 h-3" />
-            </Button>
+              <div className="flex items-center gap-4">
+                <div className={`p-3 rounded-xl ${mod.bgColor}`}>
+                  <Icon className={`w-6 h-6 ${mod.color}`} />
+                </div>
+                
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="font-bold">{mod.title}</h3>
+                    {isCompleted && (
+                      <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 text-xs rounded-full flex items-center gap-1">
+                        <Check className="w-3 h-3" />
+                        Completado
+                      </span>
+                    )}
+                    {quizScore !== undefined && (
+                      <span className="px-2 py-0.5 bg-purple-500/20 text-purple-400 text-xs rounded-full">
+                        Quiz: {quizScore}%
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-sm text-zinc-400 mt-1">{mod.description}</p>
+                  <div className="flex items-center gap-2 mt-2">
+                    <div className="h-1.5 flex-1 bg-zinc-800 rounded-full overflow-hidden">
+                      <div 
+                        className={`h-full ${isCompleted ? 'bg-emerald-500' : 'bg-amber-500'}`}
+                        style={{ width: `${(modCompleted / modLessons) * 100}%` }}
+                      />
+                    </div>
+                    <span className="text-xs text-zinc-500">{modCompleted}/{modLessons}</span>
+                  </div>
+                </div>
+                <ChevronRight className="w-5 h-5 text-zinc-500" />
+              </div>
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// ============================================
+// LIVE MARKET SCREEN
+// ============================================
+
+function LiveMarketScreen() {
+  const [marketStatus, setMarketStatus] = useState<MarketStatus | null>(null)
+  const [selectedPair, setSelectedPair] = useState<string | null>(null)
+  const [analysis, setAnalysis] = useState<{ bestPair: AnalysisResult | null; allResults: AnalysisResult[]; timestamp: string; disclaimer: string } | null>(null)
+  const [isLoadingAnalysis, setIsLoadingAnalysis] = useState(false)
+  const [lastUpdate, setLastUpdate] = useState<Date | null>(null)
+  const [showAnalysis, setShowAnalysis] = useState(false)
+
+  // Fetch market status
+  const fetchMarketStatus = useCallback(async () => {
+    try {
+      const response = await fetch('/api/market?action=status')
+      const data = await response.json()
+      setMarketStatus(data)
+    } catch (error) {
+      console.error('Error fetching market status:', error)
+    }
+  }, [])
+
+  // Run full analysis
+  const runAnalysis = useCallback(async () => {
+    setIsLoadingAnalysis(true)
+    try {
+      const response = await fetch('/api/market?action=analyze')
+      const data = await response.json()
+      setAnalysis(data)
+      setLastUpdate(new Date())
+    } catch (error) {
+      console.error('Error running analysis:', error)
+    } finally {
+      setIsLoadingAnalysis(false)
+    }
+  }, [])
+
+  // Initial load
+  useEffect(() => {
+    fetchMarketStatus()
+    runAnalysis()
+    
+    // Auto refresh every 30 seconds
+    const interval = setInterval(() => {
+      fetchMarketStatus()
+    }, 30000)
+    
+    return () => clearInterval(interval)
+  }, [fetchMarketStatus, runAnalysis])
+
+  const formatTime = (hour: number, minute: number) => {
+    return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')} UTC`
+  }
+
+  return (
+    <div className="space-y-4 animate-fadeIn">
+      {/* Header */}
+      <div className="text-center">
+        <div className="flex items-center justify-center gap-2 mb-2">
+          <Activity className="w-7 h-7 text-blue-400" />
+          <h1 className="text-2xl font-bold">Mercado en Vivo</h1>
+        </div>
+        <p className="text-sm text-zinc-400">Análisis en tiempo real</p>
+      </div>
+
+      {/* Market Sessions */}
+      <div className="bg-gradient-to-br from-blue-500/10 to-blue-500/5 border border-blue-500/30 rounded-xl p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <Globe className="w-5 h-5 text-blue-400" />
+          <h3 className="font-semibold">Sesiones de Mercado</h3>
+          {marketStatus && (
+            <span className="ml-auto text-xs text-zinc-400">
+              {formatTime(marketStatus.utcHour, marketStatus.utcMinute)}
+            </span>
           )}
-          <Badge variant="outline" className="text-xs">
-            <Activity className="w-3 h-3 mr-1" />
-            Live
-          </Badge>
+        </div>
+        
+        <div className="grid grid-cols-3 gap-2">
+          {marketStatus?.sessions && Object.entries(marketStatus.sessions).map(([key, session]) => (
+            <div 
+              key={key}
+              className={`p-3 rounded-lg text-center transition-all ${
+                session.isOpen 
+                  ? 'bg-emerald-500/20 border border-emerald-500/30' 
+                  : 'bg-zinc-800/50 border border-zinc-700/50'
+              }`}
+            >
+              <p className="text-xs text-zinc-400">{session.name}</p>
+              <div className="flex items-center justify-center gap-1 mt-1">
+                <div className={`w-2 h-2 rounded-full ${session.isOpen ? 'bg-emerald-400 animate-pulse' : 'bg-red-400'}`} />
+                <span className={`text-sm font-medium ${session.isOpen ? 'text-emerald-400' : 'text-zinc-500'}`}>
+                  {session.isOpen ? 'Abierta' : 'Cerrada'}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Best Pair Recommendation */}
+      {analysis?.bestPair && (
+        <div className="bg-gradient-to-r from-amber-500/20 to-yellow-500/20 border-2 border-amber-500/40 rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Trophy className="w-6 h-6 text-amber-400" />
+            <h3 className="font-bold text-lg">Mejor Par para Operar</h3>
+            <Zap className="w-5 h-5 text-amber-400 ml-auto" />
+          </div>
+          
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="text-2xl font-bold">{analysis.bestPair.symbol}</p>
+              <p className="text-sm text-zinc-400">Precio: {analysis.bestPair.currentPrice.toFixed(5)}</p>
+            </div>
+            <div className={`px-4 py-2 rounded-lg font-bold text-lg ${
+              analysis.bestPair.signal === 'BUY' 
+                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
+                : 'bg-red-500/20 text-red-400 border border-red-500/30'
+            }`}>
+              {analysis.bestPair.signal === 'BUY' ? (
+                <div className="flex items-center gap-2">
+                  <ArrowUpCircle className="w-5 h-5" />
+                  BUY
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <ArrowDownCircle className="w-5 h-5" />
+                  SELL
+                </div>
+              )}
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-2 mb-3">
+            <div className="p-2 bg-zinc-900/50 rounded-lg">
+              <p className="text-xs text-zinc-400">Confianza</p>
+              <p className={`font-bold ${
+                analysis.bestPair.confidence === 'Alta' ? 'text-emerald-400' :
+                analysis.bestPair.confidence === 'Media' ? 'text-amber-400' : 'text-zinc-400'
+              }`}>
+                {analysis.bestPair.confidence}
+              </p>
+            </div>
+            <div className="p-2 bg-zinc-900/50 rounded-lg">
+              <p className="text-xs text-zinc-400">EMA 50 (5M)</p>
+              <p className="font-bold text-blue-400">{analysis.bestPair.ema50_5M.toFixed(5)}</p>
+            </div>
+          </div>
+          
+          <button 
+            onClick={() => setShowAnalysis(!showAnalysis)}
+            className="w-full py-2 px-4 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
+          >
+            <Info className="w-4 h-4" />
+            {showAnalysis ? 'Ocultar análisis' : 'Ver análisis completo'}
+          </button>
+          
+          {showAnalysis && (
+            <div className="mt-3 p-3 bg-zinc-900/50 rounded-lg space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-zinc-400">Tendencia 1D:</span>
+                <span className={`font-medium ${
+                  analysis.bestPair.trend1D === 'bullish' ? 'text-emerald-400' : 'text-red-400'
+                }`}>
+                  {analysis.bestPair.trend1D === 'bullish' ? '↑ Alcista' : '↓ Bajista'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-zinc-400">Confirmación 1H:</span>
+                <span className="font-medium text-emerald-400">✓ Confirmada</span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-zinc-400">Precio vs EMA:</span>
+                <span className={`font-medium ${analysis.bestPair.priceAboveEMA ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {analysis.bestPair.priceAboveEMA ? 'Por encima' : 'Por debajo'}
+                </span>
+              </div>
+              <p className="text-xs text-zinc-300 mt-2 pt-2 border-t border-zinc-700">
+                {analysis.bestPair.explanation}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Loading State */}
+      {isLoadingAnalysis && (
+        <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-8 text-center">
+          <Loader2 className="w-10 h-10 text-blue-400 mx-auto animate-spin mb-3" />
+          <p className="text-sm text-zinc-400">Analizando {FOREX_PAIRS.length} pares...</p>
+          <p className="text-xs text-zinc-500 mt-1">Esto puede tomar unos segundos</p>
+        </div>
+      )}
+
+      {/* Other Opportunities */}
+      {analysis?.allResults && analysis.allResults.length > 1 && (
+        <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-4">
+          <h3 className="font-semibold mb-3 flex items-center gap-2">
+            <LineChart className="w-5 h-5 text-blue-400" />
+            Otras Oportunidades
+          </h3>
+          <div className="space-y-2">
+            {analysis.allResults.slice(1, 5).map((result) => (
+              <div 
+                key={result.symbol}
+                className="flex items-center justify-between p-3 bg-zinc-800/50 rounded-lg"
+              >
+                <div>
+                  <p className="font-medium">{result.symbol}</p>
+                  <p className="text-xs text-zinc-400">
+                    Confianza: {result.confidence}
+                  </p>
+                </div>
+                <div className={`px-3 py-1 rounded-lg text-sm font-medium ${
+                  result.signal === 'BUY' 
+                    ? 'bg-emerald-500/20 text-emerald-400' 
+                    : 'bg-red-500/20 text-red-400'
+                }`}>
+                  {result.signal}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Forex Pairs List */}
+      <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-semibold flex items-center gap-2">
+            <CandlestickChart className="w-5 h-5 text-blue-400" />
+            Pares Forex
+          </h3>
+          <span className="text-xs text-zinc-500">{FOREX_PAIRS.length} pares</span>
+        </div>
+        
+        <div className="space-y-1 max-h-60 overflow-y-auto">
+          {FOREX_PAIRS.map((pair) => (
+            <button
+              key={pair.symbol}
+              onClick={() => setSelectedPair(selectedPair === pair.symbol ? null : pair.symbol)}
+              className={`w-full p-2 rounded-lg text-left text-sm transition-all flex items-center justify-between ${
+                selectedPair === pair.symbol 
+                  ? 'bg-blue-500/20 border border-blue-500/30' 
+                  : 'bg-zinc-800/30 hover:bg-zinc-800/50'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <span className={`w-2 h-2 rounded-full ${pair.type === 'major' ? 'bg-amber-400' : 'bg-blue-400'}`} />
+                <span className="font-medium">{pair.symbol}</span>
+                <span className="text-zinc-500 text-xs">{pair.name}</span>
+              </div>
+              <ChevronRight className={`w-4 h-4 text-zinc-500 transition-transform ${selectedPair === pair.symbol ? 'rotate-90' : ''}`} />
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Refresh Button */}
+      <button
+        onClick={runAnalysis}
+        disabled={isLoadingAnalysis}
+        className="w-full py-3 px-4 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 rounded-xl font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+      >
+        {isLoadingAnalysis ? (
+          <>
+            <Loader2 className="w-5 h-5 animate-spin" />
+            Analizando...
+          </>
+        ) : (
+          <>
+            <RefreshCw className="w-5 h-5" />
+            Actualizar Análisis
+          </>
+        )}
+      </button>
+
+      {/* Last Update & Disclaimer */}
+      <div className="text-center space-y-2">
+        {lastUpdate && (
+          <p className="text-xs text-zinc-500">
+            Última actualización: {lastUpdate.toLocaleTimeString('es-ES')}
+          </p>
+        )}
+        <div className="flex items-start gap-2 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+          <AlertTriangle className="w-4 h-4 text-amber-400 mt-0.5 flex-shrink-0" />
+          <p className="text-xs text-amber-300">
+            Este análisis es informativo, no garantiza resultados. El trading conlleva riesgo de pérdida.
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ============================================
+// PROGRESS SCREEN
+// ============================================
+
+function ProgressScreen() {
+  const [progress, setProgress] = useState<UserProgress>({
+    completedLessons: [],
+    completedModules: [],
+    quizScores: {}
+  })
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('trademind-learn-progress')
+      if (saved) {
+        setProgress(JSON.parse(saved))
+      }
+    } catch (e) {
+      console.error('Error loading progress')
+    }
+  }, [])
+
+  const totalLessons = MODULES.reduce((acc, m) => acc + m.lessons.length, 0)
+  const completedCount = progress.completedLessons.length
+  const overallProgress = (completedCount / totalLessons) * 100
+
+  return (
+    <div className="space-y-5 animate-fadeIn">
+      <div className="text-center">
+        <h1 className="text-2xl font-bold">Tu Progreso</h1>
+        <p className="text-sm text-zinc-400">Estadísticas de aprendizaje</p>
+      </div>
+
+      {/* Stats Cards */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-4 text-center">
+          <p className="text-3xl font-bold text-amber-400">{completedCount}</p>
+          <p className="text-xs text-zinc-400 mt-1">Lecciones completadas</p>
+        </div>
+        <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-4 text-center">
+          <p className="text-3xl font-bold text-emerald-400">{progress.completedModules.length}</p>
+          <p className="text-xs text-zinc-400 mt-1">Módulos completados</p>
+        </div>
+      </div>
+
+      {/* Overall Progress */}
+      <div className="bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20 rounded-xl p-5">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <Trophy className="w-5 h-5 text-amber-400" />
+            <span className="font-medium">Progreso General</span>
+          </div>
+          <span className="text-xl font-bold">{Math.round(overallProgress)}%</span>
+        </div>
+        <div className="h-3 bg-zinc-800 rounded-full overflow-hidden">
+          <div 
+            className="h-full bg-gradient-to-r from-amber-500 to-amber-400"
+            style={{ width: `${overallProgress}%` }}
+          />
+        </div>
+        <p className="text-xs text-zinc-400 mt-2">
+          {completedCount} de {totalLessons} lecciones completadas
+        </p>
+      </div>
+
+      {/* Module Progress */}
+      <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-4">
+        <h3 className="font-semibold mb-4">Progreso por Módulo</h3>
+        <div className="space-y-3">
+          {MODULES.map((mod) => {
+            const Icon = mod.icon
+            const modCompleted = progress.completedLessons.filter(l => 
+              mod.lessons.some(ml => ml.id === l)
+            ).length
+            const modTotal = mod.lessons.length
+            const modProgress = (modCompleted / modTotal) * 100
+            const quizScore = progress.quizScores[mod.id]
+
+            return (
+              <div key={mod.id} className="flex items-center gap-3">
+                <div className={`p-2 rounded-lg ${mod.bgColor}`}>
+                  <Icon className={`w-4 h-4 ${mod.color}`} />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-sm font-medium">{mod.title}</span>
+                    <div className="flex items-center gap-2">
+                      {quizScore !== undefined && (
+                        <span className="text-xs text-purple-400">{quizScore}%</span>
+                      )}
+                      <span className="text-xs text-zinc-500">{modCompleted}/{modTotal}</span>
+                    </div>
+                  </div>
+                  <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                    <div 
+                      className={`h-full ${modProgress === 100 ? 'bg-emerald-500' : 'bg-amber-500'}`}
+                      style={{ width: `${modProgress}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ============================================
+// SETTINGS SCREEN
+// ============================================
+
+function SettingsScreen() {
+  const clearProgress = () => {
+    if (confirm('¿Estás seguro de que quieres borrar todo tu progreso?')) {
+      localStorage.removeItem('trademind-learn-progress')
+      window.location.reload()
+    }
+  }
+
+  return (
+    <div className="space-y-5 animate-fadeIn">
+      <div className="text-center">
+        <h1 className="text-2xl font-bold">Ajustes</h1>
+        <p className="text-sm text-zinc-400">Configuración de la app</p>
+      </div>
+
+      <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl divide-y divide-zinc-800">
+        <div className="p-4">
+          <h3 className="font-medium mb-1">TradeMind</h3>
+          <p className="text-sm text-zinc-400">Aprende Trading v1.0</p>
+        </div>
+        <div className="p-4">
+          <h3 className="font-medium mb-1">Acerca de</h3>
+          <p className="text-sm text-zinc-400">Aplicación educativa de trading</p>
+        </div>
+        <button 
+          onClick={clearProgress}
+          className="w-full p-4 text-left text-red-400 hover:bg-red-500/10 transition-colors"
+        >
+          <h3 className="font-medium">Borrar progreso</h3>
+          <p className="text-sm text-zinc-400">Elimina todo tu progreso guardado</p>
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ============================================
+// BOTTOM NAVIGATION
+// ============================================
+
+function BottomNav({ activeTab, setActiveTab }: { activeTab: TabId, setActiveTab: (tab: TabId) => void }) {
+  const tabs: { id: TabId; label: string; icon: React.ElementType }[] = [
+    { id: 'learn', label: 'Aprender', icon: GraduationCap },
+    { id: 'market', label: 'Mercado', icon: Activity },
+    { id: 'progress', label: 'Progreso', icon: BarChart3 },
+    { id: 'settings', label: 'Ajustes', icon: Settings },
+  ]
+
+  return (
+    <nav className="fixed bottom-0 left-0 right-0 bg-zinc-900/95 backdrop-blur-lg border-t border-zinc-800 safe-area-bottom">
+      <div className="flex items-center justify-around py-2">
+        {tabs.map((tab) => {
+          const Icon = tab.icon
+          const isActive = activeTab === tab.id
+          
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex flex-col items-center gap-1 py-2 px-4 rounded-lg transition-colors ${
+                isActive ? 'text-amber-400' : 'text-zinc-500 hover:text-zinc-300'
+              }`}
+            >
+              <Icon className={`w-5 h-5 ${isActive ? 'text-amber-400' : ''}`} />
+              <span className="text-xs">{tab.label}</span>
+              {isActive && (
+                <div className="w-1 h-1 bg-amber-400 rounded-full" />
+              )}
+            </button>
+          )
+        })}
+      </div>
+    </nav>
+  )
+}
+
+// ============================================
+// MAIN APP
+// ============================================
+
+export default function App() {
+  const [activeTab, setActiveTab] = useState<TabId>('learn')
+
+  return (
+    <div className="min-h-screen bg-[#0a0a0f] text-white pb-20">
+      {/* Header */}
+      <header className="sticky top-0 z-50 bg-[#0a0a0f]/80 backdrop-blur-lg border-b border-zinc-800">
+        <div className="px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-gradient-to-br from-amber-400 to-amber-600 rounded-lg flex items-center justify-center">
+              <TrendingUp className="w-5 h-5 text-black" />
+            </div>
+            <span className="font-bold text-lg">TradeMind</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="px-2 py-1 bg-amber-500/10 border border-amber-500/20 rounded-full">
+              <span className="text-xs text-amber-400">v1.0</span>
+            </div>
+          </div>
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-hidden">
-        {activeTab === 'dashboard' && <DashboardTab />}
-        {activeTab === 'charts' && <ChartsTab />}
-        {activeTab === 'operation' && <OperationTab />}
-        {activeTab === 'analysis' && <AIAnalysisTab />}
-        {activeTab === 'news' && <NewsTab />}
+      <main className="px-4 py-4">
+        {activeTab === 'learn' && <LearnScreen />}
+        {activeTab === 'market' && <LiveMarketScreen />}
+        {activeTab === 'progress' && <ProgressScreen />}
+        {activeTab === 'settings' && <SettingsScreen />}
       </main>
 
       {/* Bottom Navigation */}
-      <nav className="border-t border-border bg-card">
-        <div className="flex justify-around items-center py-2">
-          {tabs.map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={cn(
-                  "flex flex-col items-center gap-1 px-3 py-1 rounded-lg transition-colors",
-                  isActive ? "text-primary" : "text-muted-foreground"
-                )}
-              >
-                <Icon className="w-5 h-5" />
-                <span className="text-xs">{tab.label}</span>
-              </button>
-            );
-          })}
-        </div>
-      </nav>
+      <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} />
     </div>
-  );
+  )
 }
