@@ -33,6 +33,13 @@ import {
   XCircle
 } from 'lucide-react'
 
+// Import the new LiveMarketScreen component
+import LiveMarketScreen from '../components/LiveMarketScreen'
+// Import PriceActionScreen component
+import PriceActionScreen from '../components/PriceActionScreen'
+// Import SelectedPairProvider for global state
+import { SelectedPairProvider, useSelectedPair } from '../contexts/SelectedPairContext'
+
 // ============================================
 // TYPES
 // ============================================
@@ -94,7 +101,7 @@ interface AnalysisResult {
   distanceToEMA: number
 }
 
-type TabId = 'learn' | 'market' | 'progress' | 'settings'
+type TabId = 'learn' | 'market' | 'priceAction' | 'progress' | 'settings'
 
 // ============================================
 // MODULE DATA
@@ -1062,415 +1069,6 @@ function LearnScreen() {
 }
 
 // ============================================
-// LIVE MARKET SCREEN
-// ============================================
-
-interface TrendAnalysisUI {
-  direction: 'bullish' | 'bearish' | 'sideways'
-  ema50: number
-  currentPrice: number
-  priceAboveEMA: boolean
-  distanceToEMA: number
-  structure: string
-  strength: 'Alto' | 'Medio' | 'Bajo'
-}
-
-interface PairAlignmentUI {
-  symbol: string
-  trend1D: TrendAnalysisUI
-  trend1H: TrendAnalysisUI | null
-  isAligned: boolean
-  isReadyFor5M: boolean
-  strength: 'Alto' | 'Medio' | 'Bajo'
-  reason: string
-  timestamp: string
-}
-
-function LiveMarketScreen() {
-  const [marketStatus, setMarketStatus] = useState<MarketStatus | null>(null)
-  const [readyPairs, setReadyPairs] = useState<PairAlignmentUI[]>([])
-  const [allResults, setAllResults] = useState<PairAlignmentUI[]>([])
-  const [isLoadingAnalysis, setIsLoadingAnalysis] = useState(false)
-  const [lastUpdate, setLastUpdate] = useState<Date | null>(null)
-  const [selectedPair, setSelectedPair] = useState<PairAlignmentUI | null>(null)
-  const [notification, setNotification] = useState<string | null>(null)
-  const [prevReadyCount, setPrevReadyCount] = useState(0)
-
-  // Request notification permission
-  useEffect(() => {
-    if ('Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission()
-    }
-  }, [])
-
-  // Fetch market status
-  const fetchMarketStatus = useCallback(async () => {
-    try {
-      const response = await fetch('/api/market?action=status')
-      const data = await response.json()
-      setMarketStatus(data)
-    } catch (error) {
-      console.error('Error fetching market status:', error)
-    }
-  }, [])
-
-  // Show notification
-  const showNotification = useCallback((title: string, body: string) => {
-    setNotification(body)
-    setTimeout(() => setNotification(null), 5000)
-    
-    if ('Notification' in window && Notification.permission === 'granted') {
-      new Notification(title, { body, icon: '/icons/icon-192x192.png' })
-    }
-  }, [])
-
-  // Run full analysis
-  const runAnalysis = useCallback(async () => {
-    setIsLoadingAnalysis(true)
-    try {
-      const response = await fetch('/api/market?action=analyze')
-      const data = await response.json()
-      
-      setReadyPairs(data.readyPairs || [])
-      setAllResults(data.allResults || [])
-      setLastUpdate(new Date())
-      
-      // Check for new pairs ready
-      const newReadyCount = (data.readyPairs || []).length
-      if (newReadyCount > prevReadyCount && prevReadyCount > 0) {
-        const newPairs = data.readyPairs.slice(0, 3).map((p: PairAlignmentUI) => p.symbol).join(', ')
-        showNotification(
-          '⚠️ Pares Alineados',
-          `${newPairs} alineados en 1D y 1H. Revisar en 5M`
-        )
-      }
-      setPrevReadyCount(newReadyCount)
-      
-    } catch (error) {
-      console.error('Error running analysis:', error)
-    } finally {
-      setIsLoadingAnalysis(false)
-    }
-  }, [prevReadyCount, showNotification])
-
-  // Initial load
-  useEffect(() => {
-    fetchMarketStatus()
-    runAnalysis()
-    
-    // Auto refresh every 5 minutes
-    const interval = setInterval(() => {
-      fetchMarketStatus()
-      runAnalysis()
-    }, 300000)
-    
-    return () => clearInterval(interval)
-  }, [fetchMarketStatus, runAnalysis])
-
-  const formatTime = (hour: number, minute: number) => {
-    return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')} UTC`
-  }
-
-  return (
-    <div className="space-y-4 animate-fadeIn">
-      {/* Notification Toast */}
-      {notification && (
-        <div className="fixed top-4 left-4 right-4 z-50 bg-gradient-to-r from-amber-500 to-orange-500 text-black p-4 rounded-xl shadow-lg animate-fadeIn">
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="w-5 h-5" />
-            <p className="font-medium text-sm">{notification}</p>
-          </div>
-        </div>
-      )}
-
-      {/* Header */}
-      <div className="text-center">
-        <div className="flex items-center justify-center gap-2 mb-2">
-          <Activity className="w-7 h-7 text-blue-400" />
-          <h1 className="text-2xl font-bold">Mercado en Vivo</h1>
-        </div>
-        <p className="text-sm text-zinc-400">Filtro de alineación de temporalidades</p>
-      </div>
-
-      {/* Market Sessions */}
-      <div className="bg-gradient-to-br from-blue-500/10 to-blue-500/5 border border-blue-500/30 rounded-xl p-4">
-        <div className="flex items-center gap-2 mb-3">
-          <Globe className="w-5 h-5 text-blue-400" />
-          <h3 className="font-semibold">Sesiones de Mercado</h3>
-          {marketStatus && (
-            <span className="ml-auto text-xs text-zinc-400">
-              {formatTime(marketStatus.utcHour, marketStatus.utcMinute)}
-            </span>
-          )}
-        </div>
-        
-        <div className="grid grid-cols-3 gap-2">
-          {marketStatus?.sessions && Object.entries(marketStatus.sessions).map(([key, session]) => (
-            <div 
-              key={key}
-              className={`p-3 rounded-lg text-center transition-all ${
-                session.isOpen 
-                  ? 'bg-emerald-500/20 border border-emerald-500/30' 
-                  : 'bg-zinc-800/50 border border-zinc-700/50'
-              }`}
-            >
-              <p className="text-xs text-zinc-400">{session.name}</p>
-              <div className="flex items-center justify-center gap-1 mt-1">
-                <div className={`w-2 h-2 rounded-full ${session.isOpen ? 'bg-emerald-400 animate-pulse' : 'bg-red-400'}`} />
-                <span className={`text-sm font-medium ${session.isOpen ? 'text-emerald-400' : 'text-zinc-500'}`}>
-                  {session.isOpen ? 'Abierta' : 'Cerrada'}
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Ready for 5M Section */}
-      {!isLoadingAnalysis && readyPairs.length > 0 && (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold flex items-center gap-2">
-              <Zap className="w-5 h-5 text-amber-400" />
-              Pares listos para analizar en 5M
-            </h2>
-            <span className="px-2 py-1 bg-emerald-500/20 text-emerald-400 text-xs rounded-full">
-              {readyPairs.length} encontrados
-            </span>
-          </div>
-
-          {readyPairs.map((pair) => (
-            <button
-              key={pair.symbol}
-              onClick={() => setSelectedPair(selectedPair?.symbol === pair.symbol ? null : pair)}
-              className={`w-full p-4 rounded-xl text-left transition-all ${
-                selectedPair?.symbol === pair.symbol
-                  ? 'bg-gradient-to-r from-blue-500/20 to-purple-500/20 border-2 border-blue-500/40'
-                  : 'bg-zinc-900/50 border border-zinc-800 hover:border-zinc-700'
-              }`}
-            >
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                    pair.trend1D.direction === 'bullish' 
-                      ? 'bg-emerald-500/20' 
-                      : 'bg-red-500/20'
-                  }`}>
-                    {pair.trend1D.direction === 'bullish' ? (
-                      <TrendingUp className="w-5 h-5 text-emerald-400" />
-                    ) : (
-                      <TrendingDown className="w-5 h-5 text-red-400" />
-                    )}
-                  </div>
-                  <div>
-                    <p className="font-bold text-lg">{pair.symbol}</p>
-                    <p className="text-xs text-zinc-400">
-                      {pair.trend1D.direction === 'bullish' ? 'Alcista' : 'Bajista'} en 1D y 1H
-                    </p>
-                  </div>
-                </div>
-                
-                <div className="text-right">
-                  <div className={`px-3 py-1 rounded-full text-xs font-medium ${
-                    pair.strength === 'Alto' 
-                      ? 'bg-emerald-500/20 text-emerald-400' 
-                      : pair.strength === 'Medio'
-                      ? 'bg-amber-500/20 text-amber-400'
-                      : 'bg-zinc-500/20 text-zinc-400'
-                  }`}>
-                    Fuerza: {pair.strength}
-                  </div>
-                  <p className="text-xs text-zinc-500 mt-1">
-                    Precio: {pair.trend1H?.currentPrice.toFixed(5) || pair.trend1D.currentPrice.toFixed(5)}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 text-xs text-zinc-400">
-                <span className="flex items-center gap-1">
-                  <Check className="w-3 h-3 text-emerald-400" />
-                  EMA 50 respetada
-                </span>
-                <span>•</span>
-                <span>{pair.trend1D.structure}</span>
-              </div>
-
-              {/* Expanded Details */}
-              {selectedPair?.symbol === pair.symbol && (
-                <div className="mt-4 pt-4 border-t border-zinc-700 space-y-3">
-                  {/* 1D Analysis */}
-                  <div className="bg-zinc-800/50 rounded-lg p-3">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-xs font-medium text-blue-400">1D (Diario)</span>
-                      <span className="text-xs text-zinc-500">Tendencia principal</span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div>
-                        <span className="text-zinc-500">EMA 50:</span>
-                        <span className="ml-2 font-mono">{pair.trend1D.ema50.toFixed(5)}</span>
-                      </div>
-                      <div>
-                        <span className="text-zinc-500">Precio:</span>
-                        <span className="ml-2 font-mono">{pair.trend1D.currentPrice.toFixed(5)}</span>
-                      </div>
-                      <div>
-                        <span className="text-zinc-500">Distancia EMA:</span>
-                        <span className={`ml-2 ${pair.trend1D.distanceToEMA < 1 ? 'text-emerald-400' : 'text-amber-400'}`}>
-                          {pair.trend1D.distanceToEMA.toFixed(2)}%
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-zinc-500">Estructura:</span>
-                        <span className="ml-2">{pair.trend1D.structure}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* 1H Analysis */}
-                  {pair.trend1H && (
-                    <div className="bg-zinc-800/50 rounded-lg p-3">
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="text-xs font-medium text-purple-400">1H (1 Hora)</span>
-                        <span className="text-xs text-zinc-500">Confirmación</span>
-                        <span className="ml-auto px-2 py-0.5 bg-emerald-500/20 text-emerald-400 rounded text-xs">
-                          ✓ Alineado
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2 text-xs">
-                        <div>
-                          <span className="text-zinc-500">EMA 50:</span>
-                          <span className="ml-2 font-mono">{pair.trend1H.ema50.toFixed(5)}</span>
-                        </div>
-                        <div>
-                          <span className="text-zinc-500">Precio:</span>
-                          <span className="ml-2 font-mono">{pair.trend1H.currentPrice.toFixed(5)}</span>
-                        </div>
-                        <div>
-                          <span className="text-zinc-500">Distancia EMA:</span>
-                          <span className={`ml-2 ${pair.trend1H.distanceToEMA < 1 ? 'text-emerald-400' : 'text-amber-400'}`}>
-                            {pair.trend1H.distanceToEMA.toFixed(2)}%
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-zinc-500">Estructura:</span>
-                          <span className="ml-2">{pair.trend1H.structure}</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Action */}
-                  <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 rounded-lg p-3">
-                    <p className="text-sm font-medium mb-1">📍 Próximo paso:</p>
-                    <p className="text-xs text-zinc-400">
-                      Abre el gráfico de <strong>{pair.symbol}</strong> en temporalidad 5M. Busca:
-                    </p>
-                    <ul className="text-xs text-zinc-400 mt-2 space-y-1">
-                      <li>• Vela de rechazo en zona clave</li>
-                      <li>• Confirmación de estructura</li>
-                      <li>• Niveles de entrada, SL y TP claros</li>
-                    </ul>
-                  </div>
-                </div>
-              )}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* Loading State */}
-      {isLoadingAnalysis && (
-        <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-8 text-center">
-          <Loader2 className="w-10 h-10 text-blue-400 mx-auto animate-spin mb-3" />
-          <p className="text-sm text-zinc-400">Analizando alineación de pares...</p>
-          <p className="text-xs text-zinc-500 mt-1">Verificando 1D y 1H</p>
-        </div>
-      )}
-
-      {/* No Pairs Ready */}
-      {!isLoadingAnalysis && readyPairs.length === 0 && allResults.length > 0 && (
-        <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-6 text-center">
-          <AlertTriangle className="w-10 h-10 text-amber-400 mx-auto mb-3" />
-          <p className="font-medium mb-2">Sin pares alineados en este momento</p>
-          <p className="text-xs text-zinc-400">
-            Los pares deben tener la misma dirección en 1D y 1H, con precio respetando EMA 50.
-          </p>
-        </div>
-      )}
-
-      {/* Other Pairs Summary */}
-      {!isLoadingAnalysis && allResults.length > readyPairs.length && (
-        <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-4">
-          <h3 className="font-semibold mb-3 flex items-center gap-2">
-            <BarChart3 className="w-5 h-5 text-blue-400" />
-            Otros pares analizados
-          </h3>
-          <div className="space-y-2 max-h-40 overflow-y-auto">
-            {allResults.filter(p => !p.isReadyFor5M).slice(0, 8).map((pair) => (
-              <div 
-                key={pair.symbol}
-                className="flex items-center justify-between p-2 bg-zinc-800/50 rounded-lg"
-              >
-                <div className="flex items-center gap-2">
-                  <span className={`w-2 h-2 rounded-full ${
-                    pair.trend1D.direction === 'bullish' ? 'bg-emerald-400' :
-                    pair.trend1D.direction === 'bearish' ? 'bg-red-400' : 'bg-zinc-500'
-                  }`} />
-                  <span className="text-sm font-medium">{pair.symbol}</span>
-                </div>
-                <span className="text-xs text-zinc-500 truncate max-w-[150px]">
-                  {pair.reason}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Refresh Button */}
-      <button
-        onClick={runAnalysis}
-        disabled={isLoadingAnalysis}
-        className="w-full py-3 px-4 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 rounded-xl font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
-      >
-        {isLoadingAnalysis ? (
-          <>
-            <Loader2 className="w-5 h-5 animate-spin" />
-            Analizando...
-          </>
-        ) : (
-          <>
-            <RefreshCw className="w-5 h-5" />
-            Actualizar Análisis
-          </>
-        )}
-      </button>
-
-      {/* Last Update & Disclaimer */}
-      <div className="text-center space-y-2">
-        {lastUpdate && (
-          <p className="text-xs text-zinc-500">
-            Última actualización: {lastUpdate.toLocaleTimeString('es-ES')}
-          </p>
-        )}
-        <div className="flex items-start gap-2 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
-          <Info className="w-4 h-4 text-blue-400 mt-0.5 flex-shrink-0" />
-          <p className="text-xs text-blue-300">
-            Esta herramienta filtra oportunidades. La entrada debe confirmarse manualmente en 5M.
-          </p>
-        </div>
-        <div className="flex items-start gap-2 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
-          <AlertTriangle className="w-4 h-4 text-amber-400 mt-0.5 flex-shrink-0" />
-          <p className="text-xs text-amber-300">
-            El trading conlleva riesgo de pérdida. Opera responsablemente.
-          </p>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ============================================
 // PROGRESS SCREEN
 // ============================================
 
@@ -1764,10 +1362,11 @@ function SettingsScreen() {
 // BOTTOM NAVIGATION
 // ============================================
 
-function BottomNav({ activeTab, setActiveTab }: { activeTab: TabId, setActiveTab: (tab: TabId) => void }) {
+function BottomNav({ activeTab, setActiveTab, selectedPair }: { activeTab: TabId, setActiveTab: (tab: TabId) => void, selectedPair: string | null }) {
   const tabs: { id: TabId; label: string; icon: React.ElementType }[] = [
     { id: 'learn', label: 'Aprender', icon: GraduationCap },
     { id: 'market', label: 'Mercado', icon: Activity },
+    { id: 'priceAction', label: 'Price Action', icon: LineChart },
     { id: 'progress', label: 'Progreso', icon: BarChart3 },
     { id: 'settings', label: 'Ajustes', icon: Settings },
   ]
@@ -1804,8 +1403,9 @@ function BottomNav({ activeTab, setActiveTab }: { activeTab: TabId, setActiveTab
 // MAIN APP
 // ============================================
 
-export default function App() {
+function AppContent() {
   const [activeTab, setActiveTab] = useState<TabId>('learn')
+  const { selectedPair, pairInfo } = useSelectedPair()
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white pb-20">
@@ -1819,23 +1419,51 @@ export default function App() {
             <span className="font-bold text-lg">TradeMind</span>
           </div>
           <div className="flex items-center gap-2">
+            {/* Active Pair Indicator */}
+            {selectedPair && (
+              <div className="px-2 py-1 bg-purple-500/10 border border-purple-500/20 rounded-full flex items-center gap-1">
+                <Target className="w-3 h-3 text-purple-400" />
+                <span className="text-xs text-purple-400 font-medium">{selectedPair}</span>
+              </div>
+            )}
             <div className="px-2 py-1 bg-amber-500/10 border border-amber-500/20 rounded-full">
               <span className="text-xs text-amber-400">v1.0</span>
             </div>
           </div>
         </div>
+        
+        {/* Active Pair Banner */}
+        {selectedPair && (
+          <div className="px-4 py-1.5 bg-purple-500/5 border-t border-purple-500/10 flex items-center gap-2">
+            <Target className="w-3 h-3 text-purple-400" />
+            <span className="text-xs text-zinc-400">Par activo:</span>
+            <span className="text-xs font-bold text-purple-400">{selectedPair}</span>
+            {pairInfo && (
+              <span className="text-xs text-zinc-500">({pairInfo.name})</span>
+            )}
+          </div>
+        )}
       </header>
 
       {/* Main Content */}
       <main className="px-4 py-4">
         {activeTab === 'learn' && <LearnScreen />}
         {activeTab === 'market' && <LiveMarketScreen />}
+        {activeTab === 'priceAction' && <PriceActionScreen />}
         {activeTab === 'progress' && <ProgressScreen />}
         {activeTab === 'settings' && <SettingsScreen />}
       </main>
 
       {/* Bottom Navigation */}
-      <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} />
+      <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} selectedPair={selectedPair} />
     </div>
+  )
+}
+
+export default function App() {
+  return (
+    <SelectedPairProvider>
+      <AppContent />
+    </SelectedPairProvider>
   )
 }
