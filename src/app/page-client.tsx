@@ -36,7 +36,6 @@ import {
   Ban,
   Newspaper,
   Heart,
-  Pulse,
   ThumbsUp,
   ThumbsDown,
   MinusCircle,
@@ -65,7 +64,7 @@ import { Separator } from '@/components/ui/separator'
 // Import our custom hooks
 import useRealtimeMarketData, { Timeframe, TimeframeAnalysis } from '@/hooks/use-realtime-market-data'
 import useTradingAssistant, { EmotionalState, NewsDataState, TradeRecord } from '@/hooks/use-trading-assistant'
-import useAlerts, { TradingAlert, AlertType } from '@/hooks/use-alerts'
+import useAlerts, { TradingAlert as TradingAlertHook, AlertType as AlertTypeHook } from '@/hooks/use-alerts'
 import useForexScanner from '@/hooks/use-forex-scanner'
 import { useTrades, useUserSettings, useWatchlist } from '@/hooks/use-supabase-data'
 import { scanAllForexPairs, formatForexPrice } from '@/lib/forex-api'
