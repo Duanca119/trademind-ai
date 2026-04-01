@@ -872,7 +872,7 @@ export default function LearnTradingScreen() {
     try {
       setIsLoading(true)
       const response = await fetch('/api/learn-progress?userId=default_user')
-      
+
       if (response.ok) {
         const data = await response.json()
         setProgress({
@@ -884,13 +884,13 @@ export default function LearnTradingScreen() {
       } else {
         // Fallback to localStorage if API fails
         if (typeof window !== 'undefined') {
-          const saved = typeof window !== "undefined" && localStorage.getItem('trademind-learn-progress')
-          if (saved) {
-            try {
+          try {
+            const saved = localStorage.getItem('trademind-learn-progress')
+            if (saved) {
               setProgress(JSON.parse(saved))
-            } catch (e) {
-              console.error('Error loading progress from localStorage')
             }
+          } catch (e) {
+            console.error('Error loading progress from localStorage')
           }
         }
         setSyncStatus('error')
@@ -899,13 +899,13 @@ export default function LearnTradingScreen() {
       console.error('Error fetching progress:', error)
       // Fallback to localStorage
       if (typeof window !== 'undefined') {
-        const saved = localStorage.getItem('trademind-learn-progress')
-        if (saved) {
-          try {
+        try {
+          const saved = localStorage.getItem('trademind-learn-progress')
+          if (saved) {
             setProgress(JSON.parse(saved))
-          } catch (e) {
-            console.error('Error loading progress from localStorage')
           }
+        } catch (e) {
+          console.error('Error loading progress from localStorage')
         }
       }
       setSyncStatus('error')
@@ -923,7 +923,13 @@ export default function LearnTradingScreen() {
     setProgress(newProgress)
     
     // Always save to localStorage as backup
-    if (typeof window !== "undefined") localStorage.setItem('trademind-learn-progress', JSON.stringify(newProgress))
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem('trademind-learn-progress', JSON.stringify(newProgress))
+      } catch (e) {
+        console.error('Error saving to localStorage')
+      }
+    }
     
     // Try to sync with API
     try {
@@ -977,7 +983,13 @@ export default function LearnTradingScreen() {
         completedLessons: newCompletedLessons
       }
       setProgress(newProgress)
-      if (typeof window !== "undefined") localStorage.setItem('trademind-learn-progress', JSON.stringify(newProgress))
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem('trademind-learn-progress', JSON.stringify(newProgress))
+        } catch (e) {
+          console.error('Error saving to localStorage')
+        }
+      }
       
       // Sync with API
       setSyncStatus('syncing')
@@ -1015,7 +1027,13 @@ export default function LearnTradingScreen() {
     
     // Update local state immediately
     setProgress(newProgress)
-    if (typeof window !== "undefined") localStorage.setItem('trademind-learn-progress', JSON.stringify(newProgress))
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem('trademind-learn-progress', JSON.stringify(newProgress))
+      } catch (e) {
+        console.error('Error saving to localStorage')
+      }
+    }
     
     // Sync with API
     try {

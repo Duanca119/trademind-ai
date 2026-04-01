@@ -285,6 +285,41 @@ export interface Database {
           is_favorite?: boolean
         }
       }
+      learn_progress: {
+        Row: {
+          id: string
+          user_id: string
+          module_id: string
+          lessons_completed: string[]
+          completed: boolean
+          completed_at: string | null
+          quiz_score: number | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          module_id: string
+          lessons_completed?: string[]
+          completed?: boolean
+          completed_at?: string | null
+          quiz_score?: number | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          module_id?: string
+          lessons_completed?: string[]
+          completed?: boolean
+          completed_at?: string | null
+          quiz_score?: number | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
     }
     Views: {
       trading_stats: {
@@ -341,6 +376,10 @@ export type WatchlistItemUpdate = Database['public']['Tables']['watchlist']['Upd
 export type TradingNote = Database['public']['Tables']['trading_notes']['Row']
 export type TradingNoteInsert = Database['public']['Tables']['trading_notes']['Insert']
 export type TradingNoteUpdate = Database['public']['Tables']['trading_notes']['Update']
+
+export type LearnProgress = Database['public']['Tables']['learn_progress']['Row']
+export type LearnProgressInsert = Database['public']['Tables']['learn_progress']['Insert']
+export type LearnProgressUpdate = Database['public']['Tables']['learn_progress']['Update']
 
 // View types
 export type TradingStats = Database['public']['Views']['trading_stats']['Row']
