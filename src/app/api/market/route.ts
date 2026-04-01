@@ -1,7 +1,13 @@
 import { NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
 
 const TWELVE_DATA_API_KEY = process.env.TWELVE_DATA_API_KEY || '792522f333c3487a9102e68939c8e1e8'
 const BASE_URL = 'https://api.twelvedata.com'
+
+// Supabase client
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+const supabase = createClient(supabaseUrl, supabaseKey)
 
 // Forex pairs list
 export const FOREX_PAIRS = [
@@ -22,35 +28,33 @@ interface TimeSeriesData {
   volume: string
 }
 
-interface MarketData {
-  symbol: string
-  price: number
-  change: number
-  changePercent: number
-  high: number
-  low: number
-  open: number
-}
-
-interface AnalysisResult {
-  symbol: string
-  trend1D: 'bullish' | 'bearish' | 'sideways'
-  trend1H: 'bullish' | 'bearish' | 'sideways'
-  ema50_5M: number
+interface TrendAnalysis {
+  direction: 'bullish' | 'bearish' | 'sideways'
+  ema50: number
   currentPrice: number
-  signal: 'BUY' | 'SELL' | 'WAIT'
-  confidence: 'Alta' | 'Media' | 'Baja'
-  explanation: string
   priceAboveEMA: boolean
   distanceToEMA: number
+  structure: string // "Higher highs/lows" or "Lower highs/lows"
+  strength: 'Alto' | 'Medio' | 'Bajo'
+}
+
+interface PairAlignment {
+  symbol: string
+  trend1D: TrendAnalysis
+  trend1H: TrendAnalysis | null
+  isAligned: boolean
+  isReadyFor5M: boolean
+  strength: 'Alto' | 'Medio' | 'Bajo'
+  reason: string
+  timestamp: string
 }
 
 // Fetch time series data
-async function fetchTimeSeries(symbol: string, interval: string, outputsize: number = 50): Promise<TimeSeriesData[]> {
+async function fetchTimeSeries(symbol: string, interval: string, outputsize: number = 100): Promise<TimeSeriesData[]> {
   try {
     const response = await fetch(
       `${BASE_URL}/time_series?symbol=${symbol}&interval=${interval}&outputsize=${outputsize}&apikey=${TWELVE_DATA_API_KEY}`,
-      { next: { revalidate: 30 } }
+      { next: { revalidate: 60 } }
     )
     
     if (!response.ok) {
@@ -79,150 +83,225 @@ function calculateEMA(prices: number[], period: number): number {
   return ema
 }
 
-// Detect trend from price data
-function detectTrend(data: TimeSeriesData[]): 'bullish' | 'bearish' | 'sideways' {
-  if (data.length < 20) return 'sideways'
+// Analyze trend for a timeframe
+function analyzeTrend(data: TimeSeriesData[], timeframe: string): TrendAnalysis {
+  if (data.length < 50) {
+    return {
+      direction: 'sideways',
+      ema50: 0,
+      currentPrice: 0,
+      priceAboveEMA: false,
+      distanceToEMA: 100,
+      structure: 'Insuficiente data',
+      strength: 'Bajo'
+    }
+  }
+
+  // Sort data chronologically (oldest first)
+  const sortedData = [...data].reverse()
+  const closes = sortedData.map(d => parseFloat(d.close))
+  const highs = sortedData.map(d => parseFloat(d.high))
+  const lows = sortedData.map(d => parseFloat(d.low))
   
-  const closes = data.slice(0, 20).map(d => parseFloat(d.close))
-  const highs = data.slice(0, 20).map(d => parseFloat(d.high))
-  const lows = data.slice(0, 20).map(d => parseFloat(d.low))
+  const currentPrice = closes[closes.length - 1]
+  const ema50 = calculateEMA(closes, 50)
+  const priceAboveEMA = currentPrice > ema50
+  const distanceToEMA = Math.abs((currentPrice - ema50) / ema50) * 100
+
+  // Analyze structure (last 20 candles)
+  const recentHighs = highs.slice(-20)
+  const recentLows = lows.slice(-20)
   
-  // Count higher highs and higher lows (bullish)
   let higherHighs = 0
   let higherLows = 0
   let lowerHighs = 0
   let lowerLows = 0
   
-  for (let i = 1; i < closes.length; i++) {
-    if (highs[i] > highs[i - 1]) higherHighs++
+  for (let i = 1; i < recentHighs.length; i++) {
+    if (recentHighs[i] > recentHighs[i - 1]) higherHighs++
     else lowerHighs++
     
-    if (lows[i] > lows[i - 1]) higherLows++
+    if (recentLows[i] > recentLows[i - 1]) higherLows++
     else lowerLows++
   }
+
+  // Determine direction and structure
+  let direction: 'bullish' | 'bearish' | 'sideways' = 'sideways'
+  let structure = ''
+  let strength: 'Alto' | 'Medio' | 'Bajo' = 'Bajo'
+
+  const bullishStructure = higherHighs + higherLows
+  const bearishStructure = lowerHighs + lowerLows
   
-  const bullishScore = higherHighs + higherLows
-  const bearishScore = lowerHighs + lowerLows
-  
-  // Need clear direction (60%+ in one direction)
-  if (bullishScore >= 24) return 'bullish' // 60% of 40 comparisons
-  if (bearishScore >= 24) return 'bearish'
-  return 'sideways'
+  if (bullishStructure >= 24 && priceAboveEMA) {
+    direction = 'bullish'
+    structure = 'Máximos y mínimos crecientes'
+    // Strength based on EMA respect
+    if (distanceToEMA < 0.5) {
+      strength = 'Alto'
+    } else if (distanceToEMA < 1.5) {
+      strength = 'Medio'
+    } else {
+      strength = 'Bajo'
+    }
+  } else if (bearishStructure >= 24 && !priceAboveEMA) {
+    direction = 'bearish'
+    structure = 'Máximos y mínimos decrecientes'
+    if (distanceToEMA < 0.5) {
+      strength = 'Alto'
+    } else if (distanceToEMA < 1.5) {
+      strength = 'Medio'
+    } else {
+      strength = 'Bajo'
+    }
+  } else {
+    direction = 'sideways'
+    structure = 'Sin estructura clara'
+    strength = 'Bajo'
+  }
+
+  return {
+    direction,
+    ema50,
+    currentPrice,
+    priceAboveEMA,
+    distanceToEMA,
+    structure,
+    strength
+  }
 }
 
-// Analyze a single pair
-async function analyzePair(symbol: string): Promise<AnalysisResult | null> {
+// Analyze a single pair for alignment
+async function analyzePairAlignment(symbol: string): Promise<PairAlignment> {
   try {
-    // Fetch all timeframes in parallel
-    const [data1D, data1H, data5M] = await Promise.all([
-      fetchTimeSeries(symbol, '1day', 30),
-      fetchTimeSeries(symbol, '1h', 50),
-      fetchTimeSeries(symbol, '5min', 100)
-    ])
+    // Fetch 1D data first
+    const data1D = await fetchTimeSeries(symbol, '1day', 100)
     
-    if (!data1D.length || !data1H.length || !data5M.length) {
-      return null
-    }
-    
-    // Analyze 1D trend
-    const trend1D = detectTrend(data1D)
-    if (trend1D === 'sideways') {
-      return null // Skip pairs with no clear trend
-    }
-    
-    // Analyze 1H trend
-    const trend1H = detectTrend(data1H)
-    
-    // Confirm trend alignment
-    if (trend1D !== trend1H) {
-      return null // Skip if not confirmed
-    }
-    
-    // Calculate EMA 50 on 5M
-    const closes5M = data5M.map(d => parseFloat(d.close)).reverse()
-    const ema50 = calculateEMA(closes5M, 50)
-    const currentPrice = closes5M[closes5M.length - 1]
-    
-    // Determine signal
-    const priceAboveEMA = currentPrice > ema50
-    const distanceToEMA = ((currentPrice - ema50) / ema50) * 100
-    
-    let signal: 'BUY' | 'SELL' | 'WAIT' = 'WAIT'
-    let confidence: 'Alta' | 'Media' | 'Baja' = 'Baja'
-    let explanation = ''
-    
-    if (trend1D === 'bullish' && trend1H === 'bullish') {
-      if (priceAboveEMA && distanceToEMA < 0.5) {
-        // Price above EMA but close to it (retracement)
-        signal = 'BUY'
-        confidence = distanceToEMA < 0.2 ? 'Alta' : 'Media'
-        explanation = `Tendencia alcista confirmada. Precio sobre EMA 50 (${ema50.toFixed(5)}), retroceso hacia la media presenta oportunidad de compra.`
-      } else if (priceAboveEMA) {
-        signal = 'BUY'
-        confidence = 'Baja'
-        explanation = `Tendencia alcista. Precio sobre EMA 50 pero alejado. Esperar retroceso para mejor entrada.`
-      }
-    } else if (trend1D === 'bearish' && trend1H === 'bearish') {
-      if (!priceAboveEMA && Math.abs(distanceToEMA) < 0.5) {
-        // Price below EMA but close to it (retracement)
-        signal = 'SELL'
-        confidence = Math.abs(distanceToEMA) < 0.2 ? 'Alta' : 'Media'
-        explanation = `Tendencia bajista confirmada. Precio bajo EMA 50 (${ema50.toFixed(5)}), retroceso hacia la media presenta oportunidad de venta.`
-      } else if (!priceAboveEMA) {
-        signal = 'SELL'
-        confidence = 'Baja'
-        explanation = `Tendencia bajista. Precio bajo EMA 50 pero alejado. Esperar retroceso para mejor entrada.`
+    if (data1D.length < 50) {
+      return {
+        symbol,
+        trend1D: analyzeTrend([], '1D'),
+        trend1H: null,
+        isAligned: false,
+        isReadyFor5M: false,
+        strength: 'Bajo',
+        reason: 'Datos insuficientes',
+        timestamp: new Date().toISOString()
       }
     }
-    
-    if (signal === 'WAIT') {
-      return null // No valid setup
+
+    const trend1D = analyzeTrend(data1D, '1D')
+
+    // If 1D is sideways, don't analyze 1H
+    if (trend1D.direction === 'sideways') {
+      return {
+        symbol,
+        trend1D,
+        trend1H: null,
+        isAligned: false,
+        isReadyFor5M: false,
+        strength: 'Bajo',
+        reason: '1D lateral - Sin dirección clara',
+        timestamp: new Date().toISOString()
+      }
     }
+
+    // Fetch 1H data only if 1D has direction
+    const data1H = await fetchTimeSeries(symbol, '1h', 100)
     
+    if (data1H.length < 50) {
+      return {
+        symbol,
+        trend1D,
+        trend1H: null,
+        isAligned: false,
+        isReadyFor5M: false,
+        strength: 'Bajo',
+        reason: 'Datos 1H insuficientes',
+        timestamp: new Date().toISOString()
+      }
+    }
+
+    const trend1H = analyzeTrend(data1H, '1H')
+
+    // Check alignment
+    const isAligned = trend1D.direction === trend1H.direction && trend1H.direction !== 'sideways'
+    
+    // Check if price is respecting EMA 50 (not too far)
+    const priceRespectsEMA = trend1H.distanceToEMA < 1.5
+
+    // Determine if ready for 5M analysis
+    let isReadyFor5M = false
+    let reason = ''
+    let strength: 'Alto' | 'Medio' | 'Bajo' = 'Bajo'
+
+    if (!isAligned) {
+      reason = `1D es ${trend1D.direction}, 1H es ${trend1H.direction} - No alineados`
+      strength = 'Bajo'
+    } else if (!priceRespectsEMA) {
+      reason = `Precio muy alejado de EMA 50 (${trend1H.distanceToEMA.toFixed(2)}%)`
+      strength = 'Bajo'
+    } else {
+      isReadyFor5M = true
+      reason = `${trend1D.direction === 'bullish' ? 'Alcista' : 'Bajista'} en 1D y 1H. EMA respetada.`
+      
+      // Determine strength
+      if (trend1D.strength === 'Alto' && trend1H.strength === 'Alto') {
+        strength = 'Alto'
+      } else if (trend1D.strength === 'Alto' || trend1H.strength === 'Alto') {
+        strength = 'Medio'
+      } else {
+        strength = 'Medio'
+      }
+    }
+
     return {
       symbol,
       trend1D,
       trend1H,
-      ema50_5M: ema50,
-      currentPrice,
-      signal,
-      confidence,
-      explanation,
-      priceAboveEMA,
-      distanceToEMA: Math.abs(distanceToEMA)
+      isAligned,
+      isReadyFor5M,
+      strength,
+      reason,
+      timestamp: new Date().toISOString()
     }
   } catch (error) {
     console.error(`Error analyzing ${symbol}:`, error)
-    return null
+    return {
+      symbol,
+      trend1D: analyzeTrend([], '1D'),
+      trend1H: null,
+      isAligned: false,
+      isReadyFor5M: false,
+      strength: 'Bajo',
+      reason: 'Error en análisis',
+      timestamp: new Date().toISOString()
+    }
   }
 }
 
-// Get current price for a symbol
-async function getCurrentPrice(symbol: string): Promise<MarketData | null> {
+// Save analysis to Supabase
+async function saveAnalysisToSupabase(results: PairAlignment[]) {
   try {
-    const data = await fetchTimeSeries(symbol, '1min', 2)
-    if (!data.length) return null
-    
-    const current = data[0]
-    const previous = data[1]
-    
-    const currentClose = parseFloat(current.close)
-    const previousClose = parseFloat(previous?.close || current.open)
-    const change = currentClose - previousClose
-    const changePercent = (change / previousClose) * 100
-    
-    return {
-      symbol,
-      price: currentClose,
-      change,
-      changePercent,
-      high: parseFloat(current.high),
-      low: parseFloat(current.low),
-      open: parseFloat(current.open)
+    const records = results
+      .filter(r => r.isReadyFor5M)
+      .map(r => ({
+        symbol: r.symbol,
+        trend_1d: r.trend1D.direction,
+        trend_1h: r.trend1H?.direction || 'unknown',
+        ema50_5m: r.trend1H?.ema50 || 0,
+        current_price: r.trend1H?.currentPrice || 0,
+        price_above_ema: r.trend1H?.priceAboveEMA || false,
+        explanation: r.reason,
+        signal: 'WAIT', // We don't give signals, just filter
+        confidence: r.strength
+      }))
+
+    if (records.length > 0) {
+      await supabase.from('market_analysis').insert(records)
     }
   } catch (error) {
-    console.error(`Error getting price for ${symbol}:`, error)
-    return null
+    console.error('Error saving to Supabase:', error)
   }
 }
 
@@ -237,25 +316,19 @@ export async function GET(request: Request) {
       const now = new Date()
       const utcHour = now.getUTCHours()
       const utcMinute = now.getUTCMinutes()
-      const currentTime = utcHour * 60 + utcMinute // Minutes from midnight UTC
+      const currentTime = utcHour * 60 + utcMinute
       
       const sessions = {
         asia: {
           name: 'Asia (Tokyo)',
-          start: 0, // 00:00 UTC
-          end: 9 * 60, // 09:00 UTC
           isOpen: currentTime >= 0 && currentTime < 9 * 60
         },
         london: {
           name: 'Londres',
-          start: 8 * 60, // 08:00 UTC
-          end: 17 * 60, // 17:00 UTC
           isOpen: currentTime >= 8 * 60 && currentTime < 17 * 60
         },
         newYork: {
           name: 'Nueva York',
-          start: 13 * 60, // 13:00 UTC
-          end: 22 * 60, // 22:00 UTC
           isOpen: currentTime >= 13 * 60 && currentTime < 22 * 60
         }
       }
@@ -267,55 +340,50 @@ export async function GET(request: Request) {
         utcMinute
       })
     }
-    
-    // Get price for specific symbol
-    if (action === 'price' && symbol) {
-      const price = await getCurrentPrice(symbol)
-      return NextResponse.json(price || { error: 'Could not fetch price' })
-    }
-    
-    // Get prices for all pairs
-    if (action === 'prices') {
-      const prices = await Promise.all(
-        FOREX_PAIRS.slice(0, 10).map(pair => getCurrentPrice(pair)) // Limit to 10 to avoid rate limits
-      )
-      return NextResponse.json(prices.filter(Boolean))
-    }
-    
-    // Analyze all pairs
+
+    // Analyze all pairs for alignment
     if (action === 'analyze') {
-      // Analyze pairs with some delay to avoid rate limits
-      const results: AnalysisResult[] = []
+      const results: PairAlignment[] = []
       
-      for (const pair of FOREX_PAIRS.slice(0, 8)) { // Limit to 8 pairs for demo
-        const analysis = await analyzePair(pair)
-        if (analysis) {
-          results.push(analysis)
-        }
+      // Analyze pairs sequentially to avoid rate limits
+      for (const pair of FOREX_PAIRS.slice(0, 12)) {
+        const analysis = await analyzePairAlignment(pair)
+        results.push(analysis)
         // Small delay between requests
-        await new Promise(resolve => setTimeout(resolve, 200))
+        await new Promise(resolve => setTimeout(resolve, 150))
       }
-      
-      // Sort by confidence
-      const confidenceOrder = { 'Alta': 3, 'Media': 2, 'Baja': 1 }
-      results.sort((a, b) => confidenceOrder[b.confidence] - confidenceOrder[a.confidence])
-      
+
+      // Sort: ready for 5M first, then by strength
+      const strengthOrder = { 'Alto': 3, 'Medio': 2, 'Bajo': 1 }
+      results.sort((a, b) => {
+        if (a.isReadyFor5M !== b.isReadyFor5M) {
+          return a.isReadyFor5M ? -1 : 1
+        }
+        return strengthOrder[b.strength] - strengthOrder[a.strength]
+      })
+
+      // Filter ready pairs
+      const readyPairs = results.filter(r => r.isReadyFor5M)
+
+      // Save to Supabase
+      await saveAnalysisToSupabase(results)
+
       return NextResponse.json({
-        bestPair: results[0] || null,
+        readyPairs,
         allResults: results,
+        totalAnalyzed: results.length,
+        totalReady: readyPairs.length,
         timestamp: new Date().toISOString(),
-        disclaimer: 'Este análisis es informativo, no garantiza resultados.'
+        disclaimer: 'Esta herramienta filtra oportunidades. La entrada debe confirmarse manualmente en 5M.'
       })
     }
-    
-    // Get time series data
-    if (action === 'timeseries' && symbol) {
-      const interval = searchParams.get('interval') || '1h'
-      const outputsize = parseInt(searchParams.get('outputsize') || '50')
-      const data = await fetchTimeSeries(symbol, interval, outputsize)
-      return NextResponse.json({ symbol, interval, data })
+
+    // Analyze single pair
+    if (action === 'analyze-pair' && symbol) {
+      const analysis = await analyzePairAlignment(symbol)
+      return NextResponse.json(analysis)
     }
-    
+
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
   } catch (error) {
     console.error('API Error:', error)

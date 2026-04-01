@@ -1065,13 +1065,43 @@ function LearnScreen() {
 // LIVE MARKET SCREEN
 // ============================================
 
+interface TrendAnalysisUI {
+  direction: 'bullish' | 'bearish' | 'sideways'
+  ema50: number
+  currentPrice: number
+  priceAboveEMA: boolean
+  distanceToEMA: number
+  structure: string
+  strength: 'Alto' | 'Medio' | 'Bajo'
+}
+
+interface PairAlignmentUI {
+  symbol: string
+  trend1D: TrendAnalysisUI
+  trend1H: TrendAnalysisUI | null
+  isAligned: boolean
+  isReadyFor5M: boolean
+  strength: 'Alto' | 'Medio' | 'Bajo'
+  reason: string
+  timestamp: string
+}
+
 function LiveMarketScreen() {
   const [marketStatus, setMarketStatus] = useState<MarketStatus | null>(null)
-  const [selectedPair, setSelectedPair] = useState<string | null>(null)
-  const [analysis, setAnalysis] = useState<{ bestPair: AnalysisResult | null; allResults: AnalysisResult[]; timestamp: string; disclaimer: string } | null>(null)
+  const [readyPairs, setReadyPairs] = useState<PairAlignmentUI[]>([])
+  const [allResults, setAllResults] = useState<PairAlignmentUI[]>([])
   const [isLoadingAnalysis, setIsLoadingAnalysis] = useState(false)
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null)
-  const [showAnalysis, setShowAnalysis] = useState(false)
+  const [selectedPair, setSelectedPair] = useState<PairAlignmentUI | null>(null)
+  const [notification, setNotification] = useState<string | null>(null)
+  const [prevReadyCount, setPrevReadyCount] = useState(0)
+
+  // Request notification permission
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission()
+    }
+  }, [])
 
   // Fetch market status
   const fetchMarketStatus = useCallback(async () => {
@@ -1084,30 +1114,55 @@ function LiveMarketScreen() {
     }
   }, [])
 
+  // Show notification
+  const showNotification = useCallback((title: string, body: string) => {
+    setNotification(body)
+    setTimeout(() => setNotification(null), 5000)
+    
+    if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification(title, { body, icon: '/icons/icon-192x192.png' })
+    }
+  }, [])
+
   // Run full analysis
   const runAnalysis = useCallback(async () => {
     setIsLoadingAnalysis(true)
     try {
       const response = await fetch('/api/market?action=analyze')
       const data = await response.json()
-      setAnalysis(data)
+      
+      setReadyPairs(data.readyPairs || [])
+      setAllResults(data.allResults || [])
       setLastUpdate(new Date())
+      
+      // Check for new pairs ready
+      const newReadyCount = (data.readyPairs || []).length
+      if (newReadyCount > prevReadyCount && prevReadyCount > 0) {
+        const newPairs = data.readyPairs.slice(0, 3).map((p: PairAlignmentUI) => p.symbol).join(', ')
+        showNotification(
+          '⚠️ Pares Alineados',
+          `${newPairs} alineados en 1D y 1H. Revisar en 5M`
+        )
+      }
+      setPrevReadyCount(newReadyCount)
+      
     } catch (error) {
       console.error('Error running analysis:', error)
     } finally {
       setIsLoadingAnalysis(false)
     }
-  }, [])
+  }, [prevReadyCount, showNotification])
 
   // Initial load
   useEffect(() => {
     fetchMarketStatus()
     runAnalysis()
     
-    // Auto refresh every 30 seconds
+    // Auto refresh every 5 minutes
     const interval = setInterval(() => {
       fetchMarketStatus()
-    }, 30000)
+      runAnalysis()
+    }, 300000)
     
     return () => clearInterval(interval)
   }, [fetchMarketStatus, runAnalysis])
@@ -1118,13 +1173,23 @@ function LiveMarketScreen() {
 
   return (
     <div className="space-y-4 animate-fadeIn">
+      {/* Notification Toast */}
+      {notification && (
+        <div className="fixed top-4 left-4 right-4 z-50 bg-gradient-to-r from-amber-500 to-orange-500 text-black p-4 rounded-xl shadow-lg animate-fadeIn">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-5 h-5" />
+            <p className="font-medium text-sm">{notification}</p>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="text-center">
         <div className="flex items-center justify-center gap-2 mb-2">
           <Activity className="w-7 h-7 text-blue-400" />
           <h1 className="text-2xl font-bold">Mercado en Vivo</h1>
         </div>
-        <p className="text-sm text-zinc-400">Análisis en tiempo real</p>
+        <p className="text-sm text-zinc-400">Filtro de alineación de temporalidades</p>
       </div>
 
       {/* Market Sessions */}
@@ -1161,88 +1226,155 @@ function LiveMarketScreen() {
         </div>
       </div>
 
-      {/* Best Pair Recommendation */}
-      {analysis?.bestPair && (
-        <div className="bg-gradient-to-r from-amber-500/20 to-yellow-500/20 border-2 border-amber-500/40 rounded-xl p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <Trophy className="w-6 h-6 text-amber-400" />
-            <h3 className="font-bold text-lg">Mejor Par para Operar</h3>
-            <Zap className="w-5 h-5 text-amber-400 ml-auto" />
+      {/* Ready for 5M Section */}
+      {!isLoadingAnalysis && readyPairs.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-bold flex items-center gap-2">
+              <Zap className="w-5 h-5 text-amber-400" />
+              Pares listos para analizar en 5M
+            </h2>
+            <span className="px-2 py-1 bg-emerald-500/20 text-emerald-400 text-xs rounded-full">
+              {readyPairs.length} encontrados
+            </span>
           </div>
-          
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <p className="text-2xl font-bold">{analysis.bestPair.symbol}</p>
-              <p className="text-sm text-zinc-400">Precio: {analysis.bestPair.currentPrice.toFixed(5)}</p>
-            </div>
-            <div className={`px-4 py-2 rounded-lg font-bold text-lg ${
-              analysis.bestPair.signal === 'BUY' 
-                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
-                : 'bg-red-500/20 text-red-400 border border-red-500/30'
-            }`}>
-              {analysis.bestPair.signal === 'BUY' ? (
-                <div className="flex items-center gap-2">
-                  <ArrowUpCircle className="w-5 h-5" />
-                  BUY
+
+          {readyPairs.map((pair) => (
+            <button
+              key={pair.symbol}
+              onClick={() => setSelectedPair(selectedPair?.symbol === pair.symbol ? null : pair)}
+              className={`w-full p-4 rounded-xl text-left transition-all ${
+                selectedPair?.symbol === pair.symbol
+                  ? 'bg-gradient-to-r from-blue-500/20 to-purple-500/20 border-2 border-blue-500/40'
+                  : 'bg-zinc-900/50 border border-zinc-800 hover:border-zinc-700'
+              }`}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                    pair.trend1D.direction === 'bullish' 
+                      ? 'bg-emerald-500/20' 
+                      : 'bg-red-500/20'
+                  }`}>
+                    {pair.trend1D.direction === 'bullish' ? (
+                      <TrendingUp className="w-5 h-5 text-emerald-400" />
+                    ) : (
+                      <TrendingDown className="w-5 h-5 text-red-400" />
+                    )}
+                  </div>
+                  <div>
+                    <p className="font-bold text-lg">{pair.symbol}</p>
+                    <p className="text-xs text-zinc-400">
+                      {pair.trend1D.direction === 'bullish' ? 'Alcista' : 'Bajista'} en 1D y 1H
+                    </p>
+                  </div>
                 </div>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <ArrowDownCircle className="w-5 h-5" />
-                  SELL
+                
+                <div className="text-right">
+                  <div className={`px-3 py-1 rounded-full text-xs font-medium ${
+                    pair.strength === 'Alto' 
+                      ? 'bg-emerald-500/20 text-emerald-400' 
+                      : pair.strength === 'Medio'
+                      ? 'bg-amber-500/20 text-amber-400'
+                      : 'bg-zinc-500/20 text-zinc-400'
+                  }`}>
+                    Fuerza: {pair.strength}
+                  </div>
+                  <p className="text-xs text-zinc-500 mt-1">
+                    Precio: {pair.trend1H?.currentPrice.toFixed(5) || pair.trend1D.currentPrice.toFixed(5)}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 text-xs text-zinc-400">
+                <span className="flex items-center gap-1">
+                  <Check className="w-3 h-3 text-emerald-400" />
+                  EMA 50 respetada
+                </span>
+                <span>•</span>
+                <span>{pair.trend1D.structure}</span>
+              </div>
+
+              {/* Expanded Details */}
+              {selectedPair?.symbol === pair.symbol && (
+                <div className="mt-4 pt-4 border-t border-zinc-700 space-y-3">
+                  {/* 1D Analysis */}
+                  <div className="bg-zinc-800/50 rounded-lg p-3">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-xs font-medium text-blue-400">1D (Diario)</span>
+                      <span className="text-xs text-zinc-500">Tendencia principal</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <span className="text-zinc-500">EMA 50:</span>
+                        <span className="ml-2 font-mono">{pair.trend1D.ema50.toFixed(5)}</span>
+                      </div>
+                      <div>
+                        <span className="text-zinc-500">Precio:</span>
+                        <span className="ml-2 font-mono">{pair.trend1D.currentPrice.toFixed(5)}</span>
+                      </div>
+                      <div>
+                        <span className="text-zinc-500">Distancia EMA:</span>
+                        <span className={`ml-2 ${pair.trend1D.distanceToEMA < 1 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                          {pair.trend1D.distanceToEMA.toFixed(2)}%
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-zinc-500">Estructura:</span>
+                        <span className="ml-2">{pair.trend1D.structure}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 1H Analysis */}
+                  {pair.trend1H && (
+                    <div className="bg-zinc-800/50 rounded-lg p-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-xs font-medium text-purple-400">1H (1 Hora)</span>
+                        <span className="text-xs text-zinc-500">Confirmación</span>
+                        <span className="ml-auto px-2 py-0.5 bg-emerald-500/20 text-emerald-400 rounded text-xs">
+                          ✓ Alineado
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div>
+                          <span className="text-zinc-500">EMA 50:</span>
+                          <span className="ml-2 font-mono">{pair.trend1H.ema50.toFixed(5)}</span>
+                        </div>
+                        <div>
+                          <span className="text-zinc-500">Precio:</span>
+                          <span className="ml-2 font-mono">{pair.trend1H.currentPrice.toFixed(5)}</span>
+                        </div>
+                        <div>
+                          <span className="text-zinc-500">Distancia EMA:</span>
+                          <span className={`ml-2 ${pair.trend1H.distanceToEMA < 1 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                            {pair.trend1H.distanceToEMA.toFixed(2)}%
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-zinc-500">Estructura:</span>
+                          <span className="ml-2">{pair.trend1H.structure}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Action */}
+                  <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 rounded-lg p-3">
+                    <p className="text-sm font-medium mb-1">📍 Próximo paso:</p>
+                    <p className="text-xs text-zinc-400">
+                      Abre el gráfico de <strong>{pair.symbol}</strong> en temporalidad 5M. Busca:
+                    </p>
+                    <ul className="text-xs text-zinc-400 mt-2 space-y-1">
+                      <li>• Vela de rechazo en zona clave</li>
+                      <li>• Confirmación de estructura</li>
+                      <li>• Niveles de entrada, SL y TP claros</li>
+                    </ul>
+                  </div>
                 </div>
               )}
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-2 gap-2 mb-3">
-            <div className="p-2 bg-zinc-900/50 rounded-lg">
-              <p className="text-xs text-zinc-400">Confianza</p>
-              <p className={`font-bold ${
-                analysis.bestPair.confidence === 'Alta' ? 'text-emerald-400' :
-                analysis.bestPair.confidence === 'Media' ? 'text-amber-400' : 'text-zinc-400'
-              }`}>
-                {analysis.bestPair.confidence}
-              </p>
-            </div>
-            <div className="p-2 bg-zinc-900/50 rounded-lg">
-              <p className="text-xs text-zinc-400">EMA 50 (5M)</p>
-              <p className="font-bold text-blue-400">{analysis.bestPair.ema50_5M.toFixed(5)}</p>
-            </div>
-          </div>
-          
-          <button 
-            onClick={() => setShowAnalysis(!showAnalysis)}
-            className="w-full py-2 px-4 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
-          >
-            <Info className="w-4 h-4" />
-            {showAnalysis ? 'Ocultar análisis' : 'Ver análisis completo'}
-          </button>
-          
-          {showAnalysis && (
-            <div className="mt-3 p-3 bg-zinc-900/50 rounded-lg space-y-2">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-zinc-400">Tendencia 1D:</span>
-                <span className={`font-medium ${
-                  analysis.bestPair.trend1D === 'bullish' ? 'text-emerald-400' : 'text-red-400'
-                }`}>
-                  {analysis.bestPair.trend1D === 'bullish' ? '↑ Alcista' : '↓ Bajista'}
-                </span>
-              </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-zinc-400">Confirmación 1H:</span>
-                <span className="font-medium text-emerald-400">✓ Confirmada</span>
-              </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-zinc-400">Precio vs EMA:</span>
-                <span className={`font-medium ${analysis.bestPair.priceAboveEMA ? 'text-emerald-400' : 'text-red-400'}`}>
-                  {analysis.bestPair.priceAboveEMA ? 'Por encima' : 'Por debajo'}
-                </span>
-              </div>
-              <p className="text-xs text-zinc-300 mt-2 pt-2 border-t border-zinc-700">
-                {analysis.bestPair.explanation}
-              </p>
-            </div>
-          )}
+            </button>
+          ))}
         </div>
       )}
 
@@ -1250,74 +1382,50 @@ function LiveMarketScreen() {
       {isLoadingAnalysis && (
         <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-8 text-center">
           <Loader2 className="w-10 h-10 text-blue-400 mx-auto animate-spin mb-3" />
-          <p className="text-sm text-zinc-400">Analizando {FOREX_PAIRS.length} pares...</p>
-          <p className="text-xs text-zinc-500 mt-1">Esto puede tomar unos segundos</p>
+          <p className="text-sm text-zinc-400">Analizando alineación de pares...</p>
+          <p className="text-xs text-zinc-500 mt-1">Verificando 1D y 1H</p>
         </div>
       )}
 
-      {/* Other Opportunities */}
-      {analysis?.allResults && analysis.allResults.length > 1 && (
+      {/* No Pairs Ready */}
+      {!isLoadingAnalysis && readyPairs.length === 0 && allResults.length > 0 && (
+        <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-6 text-center">
+          <AlertTriangle className="w-10 h-10 text-amber-400 mx-auto mb-3" />
+          <p className="font-medium mb-2">Sin pares alineados en este momento</p>
+          <p className="text-xs text-zinc-400">
+            Los pares deben tener la misma dirección en 1D y 1H, con precio respetando EMA 50.
+          </p>
+        </div>
+      )}
+
+      {/* Other Pairs Summary */}
+      {!isLoadingAnalysis && allResults.length > readyPairs.length && (
         <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-4">
           <h3 className="font-semibold mb-3 flex items-center gap-2">
-            <LineChart className="w-5 h-5 text-blue-400" />
-            Otras Oportunidades
+            <BarChart3 className="w-5 h-5 text-blue-400" />
+            Otros pares analizados
           </h3>
-          <div className="space-y-2">
-            {analysis.allResults.slice(1, 5).map((result) => (
+          <div className="space-y-2 max-h-40 overflow-y-auto">
+            {allResults.filter(p => !p.isReadyFor5M).slice(0, 8).map((pair) => (
               <div 
-                key={result.symbol}
-                className="flex items-center justify-between p-3 bg-zinc-800/50 rounded-lg"
+                key={pair.symbol}
+                className="flex items-center justify-between p-2 bg-zinc-800/50 rounded-lg"
               >
-                <div>
-                  <p className="font-medium">{result.symbol}</p>
-                  <p className="text-xs text-zinc-400">
-                    Confianza: {result.confidence}
-                  </p>
+                <div className="flex items-center gap-2">
+                  <span className={`w-2 h-2 rounded-full ${
+                    pair.trend1D.direction === 'bullish' ? 'bg-emerald-400' :
+                    pair.trend1D.direction === 'bearish' ? 'bg-red-400' : 'bg-zinc-500'
+                  }`} />
+                  <span className="text-sm font-medium">{pair.symbol}</span>
                 </div>
-                <div className={`px-3 py-1 rounded-lg text-sm font-medium ${
-                  result.signal === 'BUY' 
-                    ? 'bg-emerald-500/20 text-emerald-400' 
-                    : 'bg-red-500/20 text-red-400'
-                }`}>
-                  {result.signal}
-                </div>
+                <span className="text-xs text-zinc-500 truncate max-w-[150px]">
+                  {pair.reason}
+                </span>
               </div>
             ))}
           </div>
         </div>
       )}
-
-      {/* Forex Pairs List */}
-      <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-4">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="font-semibold flex items-center gap-2">
-            <CandlestickChart className="w-5 h-5 text-blue-400" />
-            Pares Forex
-          </h3>
-          <span className="text-xs text-zinc-500">{FOREX_PAIRS.length} pares</span>
-        </div>
-        
-        <div className="space-y-1 max-h-60 overflow-y-auto">
-          {FOREX_PAIRS.map((pair) => (
-            <button
-              key={pair.symbol}
-              onClick={() => setSelectedPair(selectedPair === pair.symbol ? null : pair.symbol)}
-              className={`w-full p-2 rounded-lg text-left text-sm transition-all flex items-center justify-between ${
-                selectedPair === pair.symbol 
-                  ? 'bg-blue-500/20 border border-blue-500/30' 
-                  : 'bg-zinc-800/30 hover:bg-zinc-800/50'
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <span className={`w-2 h-2 rounded-full ${pair.type === 'major' ? 'bg-amber-400' : 'bg-blue-400'}`} />
-                <span className="font-medium">{pair.symbol}</span>
-                <span className="text-zinc-500 text-xs">{pair.name}</span>
-              </div>
-              <ChevronRight className={`w-4 h-4 text-zinc-500 transition-transform ${selectedPair === pair.symbol ? 'rotate-90' : ''}`} />
-            </button>
-          ))}
-        </div>
-      </div>
 
       {/* Refresh Button */}
       <button
@@ -1345,10 +1453,16 @@ function LiveMarketScreen() {
             Última actualización: {lastUpdate.toLocaleTimeString('es-ES')}
           </p>
         )}
+        <div className="flex items-start gap-2 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+          <Info className="w-4 h-4 text-blue-400 mt-0.5 flex-shrink-0" />
+          <p className="text-xs text-blue-300">
+            Esta herramienta filtra oportunidades. La entrada debe confirmarse manualmente en 5M.
+          </p>
+        </div>
         <div className="flex items-start gap-2 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
           <AlertTriangle className="w-4 h-4 text-amber-400 mt-0.5 flex-shrink-0" />
           <p className="text-xs text-amber-300">
-            Este análisis es informativo, no garantiza resultados. El trading conlleva riesgo de pérdida.
+            El trading conlleva riesgo de pérdida. Opera responsablemente.
           </p>
         </div>
       </div>
