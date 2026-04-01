@@ -39,6 +39,9 @@ import LiveMarketScreen from '../components/LiveMarketScreen'
 import PriceActionScreen from '../components/PriceActionScreen'
 // Import SelectedPairProvider for global state
 import { SelectedPairProvider, useSelectedPair } from '../contexts/SelectedPairContext'
+// Import TraderProfileProvider and settings component
+import { TraderProfileProvider, useTraderProfile } from '../contexts/TraderProfileContext'
+import TraderProfileSettings from '../components/TraderProfileSettings'
 
 // ============================================
 // TYPES
@@ -1186,6 +1189,7 @@ function SettingsScreen() {
   const [isChecking, setIsChecking] = useState(false)
   const [updateAvailable, setUpdateAvailable] = useState(false)
   const [registration, setRegistration] = useState<ServiceWorkerRegistration | null>(null)
+  const { profile: traderProfile, profileConfig } = useTraderProfile()
 
   // Get current version
   useEffect(() => {
@@ -1256,6 +1260,9 @@ function SettingsScreen() {
         <h1 className="text-2xl font-bold">Ajustes</h1>
         <p className="text-sm text-zinc-400">Configuración de la app</p>
       </div>
+
+      {/* Trader Profile Section */}
+      <TraderProfileSettings />
 
       {/* App Info */}
       <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl divide-y divide-zinc-800">
@@ -1406,6 +1413,7 @@ function BottomNav({ activeTab, setActiveTab, selectedPair }: { activeTab: TabId
 function AppContent() {
   const [activeTab, setActiveTab] = useState<TabId>('learn')
   const { selectedPair, pairInfo } = useSelectedPair()
+  const { profileConfig } = useTraderProfile()
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white pb-20">
@@ -1441,6 +1449,18 @@ function AppContent() {
             {pairInfo && (
               <span className="text-xs text-zinc-500">({pairInfo.name})</span>
             )}
+            <span className="text-zinc-600 mx-1">|</span>
+            <span className="text-xs">{profileConfig.icon}</span>
+            <span className="text-xs text-zinc-400">{profileConfig.name}</span>
+          </div>
+        )}
+        
+        {/* Only show profile banner if no pair selected */}
+        {!selectedPair && (
+          <div className="px-4 py-1.5 bg-zinc-800/30 border-t border-zinc-700/30 flex items-center gap-2">
+            <span className="text-xs">{profileConfig.icon}</span>
+            <span className="text-xs text-zinc-400">Perfil:</span>
+            <span className="text-xs font-medium text-zinc-300">{profileConfig.name}</span>
           </div>
         )}
       </header>
@@ -1463,7 +1483,9 @@ function AppContent() {
 export default function App() {
   return (
     <SelectedPairProvider>
-      <AppContent />
+      <TraderProfileProvider>
+        <AppContent />
+      </TraderProfileProvider>
     </SelectedPairProvider>
   )
 }

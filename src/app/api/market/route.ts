@@ -935,6 +935,73 @@ export async function GET(request: Request) {
       return NextResponse.json(priceActionAnalysis)
     }
 
+    // ============================================
+    // TRADER PROFILE
+    // ============================================
+
+    // Get trader profile
+    if (action === 'get-trader-profile') {
+      const { data, error } = await supabase
+        .from('user_trader_profile')
+        .select('profile_type, ema_distance, alerts_enabled, favorite_pairs')
+        .eq('user_id', DEFAULT_USER_ID)
+        .single()
+      
+      if (error || !data) {
+        return NextResponse.json({ 
+          profile: 'dayTrader', // Default
+          settings: {
+            emaDistance: 0.2,
+            alertsEnabled: true
+          }
+        })
+      }
+      
+      return NextResponse.json({ 
+        profile: data.profile_type,
+        settings: {
+          emaDistance: data.ema_distance,
+          alertsEnabled: data.alerts_enabled
+        }
+      })
+    }
+
+    // Set trader profile
+    if (action === 'set-trader-profile') {
+      const profile = searchParams.get('profile')
+      
+      if (!profile || !['scalper', 'dayTrader', 'swingTrader'].includes(profile)) {
+        return NextResponse.json({ error: 'Invalid profile' }, { status: 400 })
+      }
+      
+      await supabase
+        .from('user_trader_profile')
+        .upsert({
+          user_id: DEFAULT_USER_ID,
+          profile_type: profile,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'user_id' })
+      
+      return NextResponse.json({ success: true, profile, message: `Perfil actualizado: ${profile}` })
+    }
+
+    // Set trader settings
+    if (action === 'set-trader-settings') {
+      const emaDistance = parseFloat(searchParams.get('emaDistance') || '0.2')
+      const alertsEnabled = searchParams.get('alertsEnabled') === 'true'
+      
+      await supabase
+        .from('user_trader_profile')
+        .upsert({
+          user_id: DEFAULT_USER_ID,
+          ema_distance: emaDistance,
+          alerts_enabled: alertsEnabled,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'user_id' })
+      
+      return NextResponse.json({ success: true, settings: { emaDistance, alertsEnabled } })
+    }
+
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
   } catch (error) {
     console.error('API Error:', error)
