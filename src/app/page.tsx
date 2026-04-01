@@ -1184,19 +1184,33 @@ function ProgressScreen() {
 // SETTINGS SCREEN
 // ============================================
 
+interface BuildInfo {
+  version: string
+  buildId: string
+  buildTime: string
+  commitSha: string
+}
+
 function SettingsScreen() {
   const [version, setVersion] = useState<string>('...')
+  const [currentBuildId, setCurrentBuildId] = useState<string>('')
+  const [serverBuildInfo, setServerBuildInfo] = useState<BuildInfo | null>(null)
   const [isChecking, setIsChecking] = useState(false)
   const [updateAvailable, setUpdateAvailable] = useState(false)
   const [registration, setRegistration] = useState<ServiceWorkerRegistration | null>(null)
+  const [lastCheckTime, setLastCheckTime] = useState<string | null>(null)
   const { profile: traderProfile, profileConfig } = useTraderProfile()
 
-  // Get current version
+  // Get current version and load saved build ID
   useEffect(() => {
-    fetch('/api/version')
-      .then(res => res.json())
-      .then(data => setVersion(data.version || '1.0'))
-      .catch(() => setVersion('1.0'))
+    // Load saved build ID from localStorage
+    const savedBuildId = localStorage.getItem('trademind-build-id')
+    if (savedBuildId) {
+      setCurrentBuildId(savedBuildId)
+    }
+
+    // Fetch current build info
+    fetchBuildInfo()
 
     // Get service worker registration
     if ('serviceWorker' in navigator) {
@@ -1205,6 +1219,33 @@ function SettingsScreen() {
       })
     }
   }, [])
+
+  const fetchBuildInfo = async () => {
+    try {
+      const res = await fetch('/api/version', { 
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
+        }
+      })
+      const data = await res.json()
+      
+      setVersion(data.commitSha || data.version || '1.0')
+      setServerBuildInfo(data)
+      
+      // Check if build ID changed
+      const savedBuildId = localStorage.getItem('trademind-build-id')
+      if (!savedBuildId) {
+        // First time, save current build ID
+        localStorage.setItem('trademind-build-id', data.buildId || 'initial')
+        setCurrentBuildId(data.buildId || 'initial')
+      }
+    } catch (error) {
+      console.error('Error fetching build info:', error)
+      setVersion('1.0')
+    }
+  }
 
   const clearProgress = () => {
     if (confirm('¿Estás seguro de que quieres borrar todo tu progreso?')) {
@@ -1219,22 +1260,48 @@ function SettingsScreen() {
     setUpdateAvailable(false)
 
     try {
-      // Force service worker update check
+      // First, try to update service worker
       if (registration) {
         await registration.update()
-        
-        // Check if there's a waiting worker
-        if (registration.waiting) {
-          setUpdateAvailable(true)
-        }
       }
 
-      // Also check version from API
-      const res = await fetch('/api/version', { cache: 'no-store' })
-      const data = await res.json()
+      // Fetch latest build info from server with no cache
+      const res = await fetch('/api/version?t=' + Date.now(), { 
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
+        }
+      })
+      const serverData = await res.json()
       
+      setServerBuildInfo(serverData)
+      setLastCheckTime(new Date().toLocaleTimeString('es-ES'))
+      
+      // Get current saved build ID
+      const savedBuildId = localStorage.getItem('trademind-build-id') || ''
+      const savedBuildTime = localStorage.getItem('trademind-build-time') || ''
+      
+      // Check if server has different build
+      const serverBuildId = serverData.buildId || ''
+      const serverBuildTime = serverData.buildTime || ''
+      
+      // Update is available if build ID or build time changed
+      const buildChanged = serverBuildId && serverBuildId !== savedBuildId
+      const timeChanged = serverBuildTime && serverBuildTime !== savedBuildTime
+      
+      if (buildChanged || timeChanged || (registration?.waiting)) {
+        setUpdateAvailable(true)
+        // Update the stored build info
+        localStorage.setItem('trademind-latest-build-id', serverBuildId)
+        localStorage.setItem('trademind-latest-build-time', serverBuildTime)
+      } else {
+        // No update available, show current status
+        setUpdateAvailable(false)
+      }
+
       // Small delay to show loading state
-      await new Promise(resolve => setTimeout(resolve, 500))
+      await new Promise(resolve => setTimeout(resolve, 300))
       
     } catch (error) {
       console.error('Error checking updates:', error)
@@ -1243,13 +1310,27 @@ function SettingsScreen() {
     }
   }
 
-  // Apply update
+  // Apply update - force hard reload
   const applyUpdate = () => {
+    // Save the new build ID before reloading
+    if (serverBuildInfo) {
+      localStorage.setItem('trademind-build-id', serverBuildInfo.buildId || currentBuildId)
+      localStorage.setItem('trademind-build-time', serverBuildInfo.buildTime || '')
+    }
+    
+    // Tell service worker to skip waiting if available
     if (registration?.waiting) {
-      // Tell the waiting worker to activate
       registration.waiting.postMessage({ type: 'SKIP_WAITING' })
+    }
+    
+    // Force hard reload bypassing cache
+    if ('caches' in window) {
+      caches.keys().then(names => {
+        names.forEach(name => caches.delete(name))
+      }).then(() => {
+        window.location.reload()
+      })
     } else {
-      // Force hard reload
       window.location.reload()
     }
   }
@@ -1276,14 +1357,31 @@ function SettingsScreen() {
           </div>
         </div>
         
+        {/* Build Info */}
+        {serverBuildInfo && (
+          <div className="p-3 bg-zinc-800/30 text-xs text-zinc-500">
+            <div className="flex justify-between">
+              <span>Build: {serverBuildInfo.buildId?.substring(0, 12) || 'local'}</span>
+              {serverBuildInfo.buildTime && (
+                <span>{new Date(serverBuildInfo.buildTime).toLocaleString('es-ES')}</span>
+              )}
+            </div>
+          </div>
+        )}
+        
         {/* Update Section */}
         <div className="p-4">
           <div className="flex items-center justify-between mb-3">
             <div>
               <h3 className="font-medium">Actualizaciones</h3>
               <p className="text-sm text-zinc-400">
-                {updateAvailable ? 'Nueva versión disponible' : 'Buscar actualizaciones'}
+                {updateAvailable ? '⚡ Nueva versión disponible' : 'Buscar actualizaciones'}
               </p>
+              {lastCheckTime && !updateAvailable && (
+                <p className="text-xs text-zinc-500 mt-1">
+                  Última verificación: {lastCheckTime}
+                </p>
+              )}
             </div>
           </div>
           
@@ -1304,7 +1402,7 @@ function SettingsScreen() {
               {isChecking ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" />
-                  Buscando...
+                  Verificando...
                 </>
               ) : (
                 <>

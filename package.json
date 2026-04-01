@@ -4,9 +4,11 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3000 2>&1 | tee dev.log",
+    "prebuild": "node scripts/generate-build-info.js",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "generate-build-info": "node scripts/generate-build-info.js"
   },
   "dependencies": {
     "@radix-ui/react-accordion": "^1.2.11",
