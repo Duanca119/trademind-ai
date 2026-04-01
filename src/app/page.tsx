@@ -27,7 +27,10 @@ import {
   CandlestickChart,
   Settings,
   AlertTriangle,
-  DollarSign
+  DollarSign,
+  Download,
+  CheckCircle,
+  XCircle
 } from 'lucide-react'
 
 // ============================================
@@ -1467,9 +1470,70 @@ function ProgressScreen() {
 // ============================================
 
 function SettingsScreen() {
+  const [version, setVersion] = useState<string>('...')
+  const [isChecking, setIsChecking] = useState(false)
+  const [updateAvailable, setUpdateAvailable] = useState(false)
+  const [registration, setRegistration] = useState<ServiceWorkerRegistration | null>(null)
+
+  // Get current version
+  useEffect(() => {
+    fetch('/api/version')
+      .then(res => res.json())
+      .then(data => setVersion(data.version || '1.0'))
+      .catch(() => setVersion('1.0'))
+
+    // Get service worker registration
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistration().then(reg => {
+        setRegistration(reg || null)
+      })
+    }
+  }, [])
+
   const clearProgress = () => {
     if (confirm('¿Estás seguro de que quieres borrar todo tu progreso?')) {
       localStorage.removeItem('trademind-learn-progress')
+      window.location.reload()
+    }
+  }
+
+  // Check for updates
+  const checkForUpdates = async () => {
+    setIsChecking(true)
+    setUpdateAvailable(false)
+
+    try {
+      // Force service worker update check
+      if (registration) {
+        await registration.update()
+        
+        // Check if there's a waiting worker
+        if (registration.waiting) {
+          setUpdateAvailable(true)
+        }
+      }
+
+      // Also check version from API
+      const res = await fetch('/api/version', { cache: 'no-store' })
+      const data = await res.json()
+      
+      // Small delay to show loading state
+      await new Promise(resolve => setTimeout(resolve, 500))
+      
+    } catch (error) {
+      console.error('Error checking updates:', error)
+    } finally {
+      setIsChecking(false)
+    }
+  }
+
+  // Apply update
+  const applyUpdate = () => {
+    if (registration?.waiting) {
+      // Tell the waiting worker to activate
+      registration.waiting.postMessage({ type: 'SKIP_WAITING' })
+    } else {
+      // Force hard reload
       window.location.reload()
     }
   }
@@ -1481,15 +1545,72 @@ function SettingsScreen() {
         <p className="text-sm text-zinc-400">Configuración de la app</p>
       </div>
 
+      {/* App Info */}
       <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl divide-y divide-zinc-800">
-        <div className="p-4">
-          <h3 className="font-medium mb-1">TradeMind</h3>
-          <p className="text-sm text-zinc-400">Aprende Trading v1.0</p>
+        <div className="p-4 flex items-center justify-between">
+          <div>
+            <h3 className="font-medium mb-1">TradeMind</h3>
+            <p className="text-sm text-zinc-400">Aprende Trading + Mercado en Vivo</p>
+          </div>
+          <div className="px-3 py-1 bg-amber-500/10 border border-amber-500/20 rounded-full">
+            <span className="text-xs text-amber-400 font-mono">v{version}</span>
+          </div>
         </div>
+        
+        {/* Update Section */}
         <div className="p-4">
-          <h3 className="font-medium mb-1">Acerca de</h3>
-          <p className="text-sm text-zinc-400">Aplicación educativa de trading</p>
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <h3 className="font-medium">Actualizaciones</h3>
+              <p className="text-sm text-zinc-400">
+                {updateAvailable ? 'Nueva versión disponible' : 'Buscar actualizaciones'}
+              </p>
+            </div>
+          </div>
+          
+          {updateAvailable ? (
+            <button 
+              onClick={applyUpdate}
+              className="w-full py-3 px-4 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 rounded-lg font-medium transition-all flex items-center justify-center gap-2"
+            >
+              <Download className="w-5 h-5" />
+              Instalar Actualización
+            </button>
+          ) : (
+            <button 
+              onClick={checkForUpdates}
+              disabled={isChecking}
+              className="w-full py-3 px-4 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              {isChecking ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  Buscando...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="w-5 h-5" />
+                  Buscar Actualizaciones
+                </>
+              )}
+            </button>
+          )}
         </div>
+
+        {/* Install as PWA hint */}
+        <div className="p-4 bg-gradient-to-r from-blue-500/10 to-purple-500/10">
+          <div className="flex items-start gap-3">
+            <Zap className="w-5 h-5 text-blue-400 mt-0.5" />
+            <div>
+              <h3 className="font-medium text-sm">Instalar como App</h3>
+              <p className="text-xs text-zinc-400 mt-1">
+                Toca "Añadir a pantalla de inicio" en el menú de tu navegador para instalar la app.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Clear Progress */}
         <button 
           onClick={clearProgress}
           className="w-full p-4 text-left text-red-400 hover:bg-red-500/10 transition-colors"
@@ -1497,6 +1618,29 @@ function SettingsScreen() {
           <h3 className="font-medium">Borrar progreso</h3>
           <p className="text-sm text-zinc-400">Elimina todo tu progreso guardado</p>
         </button>
+      </div>
+
+      {/* Stats */}
+      <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-4">
+        <h3 className="font-medium mb-3">Estado de la App</h3>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="flex items-center gap-2">
+            {registration ? (
+              <CheckCircle className="w-4 h-4 text-emerald-400" />
+            ) : (
+              <XCircle className="w-4 h-4 text-red-400" />
+            )}
+            <span className="text-sm">Service Worker</span>
+          </div>
+          <div className="flex items-center gap-2">
+            {'serviceWorker' in navigator ? (
+              <CheckCircle className="w-4 h-4 text-emerald-400" />
+            ) : (
+              <XCircle className="w-4 h-4 text-red-400" />
+            )}
+            <span className="text-sm">PWA Soportado</span>
+          </div>
+        </div>
       </div>
     </div>
   )
