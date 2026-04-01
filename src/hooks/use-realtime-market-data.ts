@@ -76,6 +76,25 @@ const POLL_INTERVAL_FOREX = 2000 // 2 seconds for Forex
 const POLL_INTERVAL_CRYPTO = 3000 // 3 seconds for Crypto
 
 // ============================================
+// HELPER TYPES
+// ============================================
+
+interface GeneratedCandle {
+  openTime: number
+  open: number
+  high: number
+  low: number
+  close: number
+  volume: number
+  closeTime: number
+  quoteAssetVolume: number
+  numberOfTrades: number
+  takerBuyBaseAssetVolume: number
+  takerBuyQuoteAssetVolume: number
+  ignore: number
+}
+
+// ============================================
 // HELPER FUNCTIONS
 // ============================================
 
@@ -83,7 +102,7 @@ function generateCandlesticksFromPrice(
   currentPrice: number,
   symbol: string,
   count: number = 100
-): Record<Timeframe, any[]> {
+): Record<Timeframe, GeneratedCandle[]> {
   const asset = getAssetById(symbol)
   const volatility = symbol === 'XAUUSD' ? 0.015 : 
                      symbol.includes('JPY') ? 0.008 : 

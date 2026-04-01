@@ -2236,7 +2236,7 @@ function DashboardScreen({
   selectedAsset,
   onAssetChange
 }: { 
-  marketData: ReturnType<typeof useMarketData>
+  marketData: ReturnType<typeof useRealtimeMarketData>
   tradingAssistant: ReturnType<typeof useTradingAssistant>
   selectedAsset: string
   onAssetChange: (assetId: string) => void
@@ -2745,7 +2745,7 @@ function DashboardScreen({
   )
 }
 
-function ChartsScreen({ assetId, marketData }: { assetId: string; marketData: ReturnType<typeof useMarketData> }) {
+function ChartsScreen({ assetId, marketData }: { assetId: string; marketData: ReturnType<typeof useRealtimeMarketData> }) {
   const assetConfig = getAssetById(assetId)
   
   return (
@@ -2795,7 +2795,7 @@ function ChartsScreen({ assetId, marketData }: { assetId: string; marketData: Re
 }
 
 function AnalysisScreen({ marketData, tradingAssistant, selectedAsset }: { 
-  marketData: ReturnType<typeof useMarketData>
+  marketData: ReturnType<typeof useRealtimeMarketData>
   tradingAssistant: ReturnType<typeof useTradingAssistant>
   selectedAsset: string
 }) {
@@ -2877,7 +2877,7 @@ function AnalysisScreen({ marketData, tradingAssistant, selectedAsset }: {
   )
 }
 
-function RiskScreen({ marketData }: { marketData: ReturnType<typeof useMarketData> }) {
+function RiskScreen({ marketData }: { marketData: ReturnType<typeof useRealtimeMarketData> }) {
   return (
     <div className="space-y-4">
       <div>
@@ -2898,7 +2898,7 @@ function OperationScreen({
   marketData, 
   selectedAsset 
 }: { 
-  marketData: ReturnType<typeof useMarketData>
+  marketData: ReturnType<typeof useRealtimeMarketData>
   selectedAsset: string
 }) {
   const assetConfig = getAssetById(selectedAsset)
@@ -3386,20 +3386,20 @@ function HistoryScreen() {
               <div 
                 key={trade.id} 
                 className={`p-3 rounded-lg border ${
-                  (trade.profit || 0) >= 0 
+                  (trade.pnl || 0) >= 0 
                     ? 'bg-[#22C55E]/20 border-[#22C55E]/50' 
                     : 'bg-[#EF4444]/20 border-[#EF4444]/50'
                 }`}
               >
                 <div className="flex items-center justify-between mb-1">
                   <div className="flex items-center gap-2">
-                    <Badge className={trade.type === 'buy' ? 'bg-[#22C55E]' : 'bg-[#EF4444]'}>
-                      {trade.type.toUpperCase()}
+                    <Badge className={trade.direction === 'long' ? 'bg-[#22C55E]' : 'bg-[#EF4444]'}>
+                      {trade.direction.toUpperCase()}
                     </Badge>
                     <span className="font-medium">{trade.symbol}</span>
                   </div>
                   <span className="text-xs text-muted-foreground">
-                    {new Date(trade.entry_time).toLocaleDateString()}
+                    {new Date(trade.created_at).toLocaleDateString()}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
@@ -3409,10 +3409,10 @@ function HistoryScreen() {
                       <span className="ml-2">Exit: ${trade.exit_price.toFixed(2)}</span>
                     )}
                   </div>
-                  <p className={`text-sm font-medium ${(trade.profit || 0) >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-                    {formatProfit(trade.profit)}
-                    {trade.profit_percent && (
-                      <span className="text-xs ml-1">({trade.profit_percent >= 0 ? '+' : ''}{trade.profit_percent.toFixed(2)}%)</span>
+                  <p className={`text-sm font-medium ${(trade.pnl || 0) >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                    {formatProfit(trade.pnl)}
+                    {trade.pnl_percentage && (
+                      <span className="text-xs ml-1">({trade.pnl_percentage >= 0 ? '+' : ''}{trade.pnl_percentage.toFixed(2)}%)</span>
                     )}
                   </p>
                 </div>

@@ -1,9 +1,13 @@
 // Asset types
 export interface Asset {
+  id: string;
   symbol: string;
   name: string;
   type: 'forex' | 'crypto';
   category: 'major' | 'minor' | 'exotic' | 'crypto';
+  icon: string;
+  description: string;
+  decimals: number;
 }
 
 // Timeframe types
@@ -217,31 +221,33 @@ export const FOREX_PAIRS = [
 // ASSETS constant for backwards compatibility
 export const ASSETS: Asset[] = [
   // Major Pairs
-  { symbol: 'EUR/USD', name: 'Euro / US Dollar', type: 'forex', category: 'major' },
-  { symbol: 'GBP/USD', name: 'British Pound / US Dollar', type: 'forex', category: 'major' },
-  { symbol: 'USD/JPY', name: 'US Dollar / Japanese Yen', type: 'forex', category: 'major' },
-  { symbol: 'USD/CHF', name: 'US Dollar / Swiss Franc', type: 'forex', category: 'major' },
-  { symbol: 'AUD/USD', name: 'Australian Dollar / US Dollar', type: 'forex', category: 'major' },
-  { symbol: 'USD/CAD', name: 'US Dollar / Canadian Dollar', type: 'forex', category: 'major' },
-  { symbol: 'NZD/USD', name: 'New Zealand Dollar / US Dollar', type: 'forex', category: 'major' },
-  { symbol: 'EUR/GBP', name: 'Euro / British Pound', type: 'forex', category: 'major' },
+  { id: 'EURUSD', symbol: 'EUR/USD', name: 'Euro / US Dollar', type: 'forex', category: 'major', icon: '💶', description: 'Major forex pair', decimals: 5 },
+  { id: 'GBPUSD', symbol: 'GBP/USD', name: 'British Pound / US Dollar', type: 'forex', category: 'major', icon: '💷', description: 'Major forex pair', decimals: 5 },
+  { id: 'USDJPY', symbol: 'USD/JPY', name: 'US Dollar / Japanese Yen', type: 'forex', category: 'major', icon: '💴', description: 'Major forex pair', decimals: 3 },
+  { id: 'USDCHF', symbol: 'USD/CHF', name: 'US Dollar / Swiss Franc', type: 'forex', category: 'major', icon: '🇨🇭', description: 'Major forex pair', decimals: 5 },
+  { id: 'AUDUSD', symbol: 'AUD/USD', name: 'Australian Dollar / US Dollar', type: 'forex', category: 'major', icon: '🇦🇺', description: 'Major forex pair', decimals: 5 },
+  { id: 'USDCAD', symbol: 'USD/CAD', name: 'US Dollar / Canadian Dollar', type: 'forex', category: 'major', icon: '🍁', description: 'Major forex pair', decimals: 5 },
+  { id: 'NZDUSD', symbol: 'NZD/USD', name: 'New Zealand Dollar / US Dollar', type: 'forex', category: 'major', icon: '🇳🇿', description: 'Major forex pair', decimals: 5 },
+  { id: 'EURGBP', symbol: 'EUR/GBP', name: 'Euro / British Pound', type: 'forex', category: 'major', icon: '💶', description: 'Major forex pair', decimals: 5 },
   // Minor Pairs
-  { symbol: 'EUR/JPY', name: 'Euro / Japanese Yen', type: 'forex', category: 'minor' },
-  { symbol: 'GBP/JPY', name: 'British Pound / Japanese Yen', type: 'forex', category: 'minor' },
-  { symbol: 'EUR/AUD', name: 'Euro / Australian Dollar', type: 'forex', category: 'minor' },
-  { symbol: 'EUR/CAD', name: 'Euro / Canadian Dollar', type: 'forex', category: 'minor' },
-  { symbol: 'EUR/CHF', name: 'Euro / Swiss Franc', type: 'forex', category: 'minor' },
-  { symbol: 'GBP/CHF', name: 'British Pound / Swiss Franc', type: 'forex', category: 'minor' },
-  { symbol: 'AUD/JPY', name: 'Australian Dollar / Japanese Yen', type: 'forex', category: 'minor' },
-  { symbol: 'CAD/JPY', name: 'Canadian Dollar / Japanese Yen', type: 'forex', category: 'minor' },
+  { id: 'EURJPY', symbol: 'EUR/JPY', name: 'Euro / Japanese Yen', type: 'forex', category: 'minor', icon: '💶', description: 'Minor forex pair', decimals: 3 },
+  { id: 'GBPJPY', symbol: 'GBP/JPY', name: 'British Pound / Japanese Yen', type: 'forex', category: 'minor', icon: '💷', description: 'Minor forex pair', decimals: 3 },
+  { id: 'EURAUD', symbol: 'EUR/AUD', name: 'Euro / Australian Dollar', type: 'forex', category: 'minor', icon: '💶', description: 'Minor forex pair', decimals: 5 },
+  { id: 'EURCAD', symbol: 'EUR/CAD', name: 'Euro / Canadian Dollar', type: 'forex', category: 'minor', icon: '💶', description: 'Minor forex pair', decimals: 5 },
+  { id: 'EURCHF', symbol: 'EUR/CHF', name: 'Euro / Swiss Franc', type: 'forex', category: 'minor', icon: '💶', description: 'Minor forex pair', decimals: 5 },
+  { id: 'GBPCHF', symbol: 'GBP/CHF', name: 'British Pound / Swiss Franc', type: 'forex', category: 'minor', icon: '💷', description: 'Minor forex pair', decimals: 5 },
+  { id: 'AUDJPY', symbol: 'AUD/JPY', name: 'Australian Dollar / Japanese Yen', type: 'forex', category: 'minor', icon: '🇦🇺', description: 'Minor forex pair', decimals: 3 },
+  { id: 'CADJPY', symbol: 'CAD/JPY', name: 'Canadian Dollar / Japanese Yen', type: 'forex', category: 'minor', icon: '🍁', description: 'Minor forex pair', decimals: 3 },
   // Exotic Pairs
-  { symbol: 'USD/MXN', name: 'US Dollar / Mexican Peso', type: 'forex', category: 'exotic' },
-  { symbol: 'USD/ZAR', name: 'US Dollar / South African Rand', type: 'forex', category: 'exotic' },
-  { symbol: 'USD/TRY', name: 'US Dollar / Turkish Lira', type: 'forex', category: 'exotic' },
-  { symbol: 'USD/SGD', name: 'US Dollar / Singapore Dollar', type: 'forex', category: 'exotic' },
+  { id: 'USDMXN', symbol: 'USD/MXN', name: 'US Dollar / Mexican Peso', type: 'forex', category: 'exotic', icon: '🇲🇽', description: 'Exotic forex pair', decimals: 5 },
+  { id: 'USDZAR', symbol: 'USD/ZAR', name: 'US Dollar / South African Rand', type: 'forex', category: 'exotic', icon: '🇿🇦', description: 'Exotic forex pair', decimals: 5 },
+  { id: 'USDTRY', symbol: 'USD/TRY', name: 'US Dollar / Turkish Lira', type: 'forex', category: 'exotic', icon: '🇹🇷', description: 'Exotic forex pair', decimals: 5 },
+  { id: 'USDSGD', symbol: 'USD/SGD', name: 'US Dollar / Singapore Dollar', type: 'forex', category: 'exotic', icon: '🇸🇬', description: 'Exotic forex pair', decimals: 5 },
+  // Commodities
+  { id: 'XAUUSD', symbol: 'XAU/USD', name: 'Gold / US Dollar', type: 'forex', category: 'exotic', icon: '🥇', description: 'Gold spot price', decimals: 2 },
   // Crypto
-  { symbol: 'BTC/USD', name: 'Bitcoin / US Dollar', type: 'crypto', category: 'crypto' },
-  { symbol: 'ETH/USD', name: 'Ethereum / US Dollar', type: 'crypto', category: 'crypto' },
+  { id: 'BTCUSDT', symbol: 'BTC/USD', name: 'Bitcoin / US Dollar', type: 'crypto', category: 'crypto', icon: '₿', description: 'Bitcoin cryptocurrency', decimals: 2 },
+  { id: 'ETHUSDT', symbol: 'ETH/USD', name: 'Ethereum / US Dollar', type: 'crypto', category: 'crypto', icon: 'Ξ', description: 'Ethereum cryptocurrency', decimals: 2 },
 ]
 
 // Helper functions
@@ -253,8 +259,11 @@ export function getTradingViewSymbol(symbol: string): string {
 }
 
 export function getAssetById(id: string): Asset | undefined {
-  return ASSETS.find(a => a.symbol === id || a.symbol.replace('/', '') === id)
+  return ASSETS.find(a => a.id === id || a.symbol === id || a.symbol.replace('/', '') === id)
 }
+
+// Alias for backwards compatibility
+export const getAssetBySymbol = getAssetById
 
 export function formatAssetPrice(price: number, symbol?: string): string {
   if (!price || isNaN(price)) return '0.00'
