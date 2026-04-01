@@ -5,16 +5,22 @@
 import { createClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/database'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.warn('Missing Supabase environment variables')
+// Safe check for environment variables
+const isConfigured = !!(supabaseUrl && supabaseAnonKey && 
+  supabaseUrl !== 'undefined' && supabaseAnonKey !== 'undefined' &&
+  supabaseUrl.startsWith('http'))
+
+if (!isConfigured) {
+  console.warn('Supabase not configured - some features will be limited')
 }
 
+// Create client with fallback values to prevent crashes
 export const supabase = createClient<Database>(
-  supabaseUrl || 'https://placeholder.supabase.co', 
-  supabaseAnonKey || 'placeholder-key',
+  isConfigured ? supabaseUrl! : 'https://placeholder.supabase.co', 
+  isConfigured ? supabaseAnonKey! : 'placeholder-key',
   {
     auth: {
       persistSession: true,

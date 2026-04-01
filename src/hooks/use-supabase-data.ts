@@ -71,12 +71,16 @@ export function useTrades(): UseTradesReturn {
         .select('*')
         .order('created_at', { ascending: false })
       
-      if (fetchError) throw fetchError
+      if (fetchError) {
+        // Don't throw, just log and set empty data
+        console.warn('Trades table not accessible:', fetchError.message)
+        setTrades([])
+        return
+      }
       
       setTrades(data || [])
     } catch (err) {
-      console.error('Error fetching trades:', err)
-      setError('Error al cargar trades')
+      console.warn('Error fetching trades:', err)
       setTrades([])
     } finally {
       setIsLoading(false)
@@ -288,12 +292,16 @@ export function useSessions(): UseSessionsReturn {
         .order('session_date', { ascending: false })
         .limit(30)
       
-      if (fetchError) throw fetchError
+      if (fetchError) {
+        console.warn('Sessions table not accessible:', fetchError.message)
+        setSessions([])
+        return
+      }
       
       setSessions(data || [])
     } catch (err) {
-      console.error('Error fetching sessions:', err)
-      setError('Error al cargar sesiones')
+      console.warn('Error fetching sessions:', err)
+      setSessions([])
     } finally {
       setIsLoading(false)
     }
@@ -409,7 +417,9 @@ export function useUserSettings(): UseUserSettingsReturn {
         .single()
       
       if (fetchError && fetchError.code !== 'PGRST116') {
-        throw fetchError
+        console.warn('Settings table not accessible:', fetchError.message)
+        setSettings(null)
+        return
       }
       
       if (!data) {
@@ -420,14 +430,18 @@ export function useUserSettings(): UseUserSettingsReturn {
           .select()
           .single()
         
-        if (insertError) throw insertError
+        if (insertError) {
+          console.warn('Could not create settings:', insertError.message)
+          setSettings(null)
+          return
+        }
         setSettings(newSettings)
       } else {
         setSettings(data)
       }
     } catch (err) {
-      console.error('Error fetching settings:', err)
-      setError('Error al cargar configuración')
+      console.warn('Error fetching settings:', err)
+      setSettings(null)
     } finally {
       setIsLoading(false)
     }
@@ -513,12 +527,15 @@ export function useWatchlist(): UseWatchlistReturn {
         .select('*')
         .order('priority', { ascending: false })
       
-      if (fetchError) throw fetchError
+      if (fetchError) {
+        console.warn('Watchlist table not accessible:', fetchError.message)
+        setItems([])
+        return
+      }
       
       setItems(data || [])
     } catch (err) {
-      console.error('Error fetching watchlist:', err)
-      setError('Error al cargar watchlist')
+      console.warn('Error fetching watchlist:', err)
       setItems([])
     } finally {
       setIsLoading(false)
@@ -632,12 +649,15 @@ export function useTradingNotes(): UseTradingNotesReturn {
         .order('note_date', { ascending: false })
         .limit(30)
       
-      if (fetchError) throw fetchError
+      if (fetchError) {
+        console.warn('Notes table not accessible:', fetchError.message)
+        setNotes([])
+        return
+      }
       
       setNotes(data || [])
     } catch (err) {
-      console.error('Error fetching notes:', err)
-      setError('Error al cargar notas')
+      console.warn('Error fetching notes:', err)
       setNotes([])
     } finally {
       setIsLoading(false)
@@ -782,20 +802,25 @@ export function useStats(): UseStatsReturn {
         .from('trading_stats')
         .select('*')
       
-      if (statsError) throw statsError
-      setTradingStats(statsData || [])
+      if (statsError) {
+        console.warn('Trading stats view not accessible:', statsError.message)
+      } else {
+        setTradingStats(statsData || [])
+      }
       
       // Fetch weekly performance
       const { data: weeklyData, error: weeklyError } = await supabase
         .from('weekly_performance')
         .select('*')
       
-      if (weeklyError) throw weeklyError
-      setWeeklyPerformance(weeklyData || [])
+      if (weeklyError) {
+        console.warn('Weekly performance view not accessible:', weeklyError.message)
+      } else {
+        setWeeklyPerformance(weeklyData || [])
+      }
       
     } catch (err) {
-      console.error('Error fetching stats:', err)
-      setError('Error al cargar estadísticas')
+      console.warn('Error fetching stats:', err)
     } finally {
       setIsLoading(false)
     }
