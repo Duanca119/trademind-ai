@@ -45,6 +45,7 @@ export interface UseTradesReturn {
     largestWin: number
     largestLoss: number
     avgScore: number
+    avgConfidence: number
   }
   
   // Actions
@@ -131,7 +132,8 @@ export function useTrades(): UseTradesReturn {
       avgProfit,
       largestWin,
       largestLoss,
-      avgScore
+      avgScore,
+      avgConfidence: avgScore // Alias for compatibility
     }
   }, [trades, closedTrades])
   
