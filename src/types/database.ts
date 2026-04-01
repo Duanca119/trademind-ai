@@ -290,7 +290,7 @@ export interface Database {
           id: string
           user_id: string
           module_id: string
-          lessons_completed: string[]
+          lessons_completed: Json
           completed: boolean
           completed_at: string | null
           quiz_score: number | null
@@ -301,7 +301,7 @@ export interface Database {
           id?: string
           user_id: string
           module_id: string
-          lessons_completed?: string[]
+          lessons_completed?: Json
           completed?: boolean
           completed_at?: string | null
           quiz_score?: number | null
@@ -312,7 +312,7 @@ export interface Database {
           id?: string
           user_id?: string
           module_id?: string
-          lessons_completed?: string[]
+          lessons_completed?: Json
           completed?: boolean
           completed_at?: string | null
           quiz_score?: number | null
