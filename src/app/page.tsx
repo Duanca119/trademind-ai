@@ -30,13 +30,16 @@ import {
   DollarSign,
   Download,
   CheckCircle,
-  XCircle
+  XCircle,
+  LayoutDashboard
 } from 'lucide-react'
 
 // Import the new LiveMarketScreen component
 import LiveMarketScreen from '../components/LiveMarketScreen'
 // Import PriceActionScreen component
 import PriceActionScreen from '../components/PriceActionScreen'
+// Import AnalysisPanelScreen component
+import AnalysisPanelScreen from '../components/AnalysisPanelScreen'
 // Import SelectedPairProvider for global state
 import { SelectedPairProvider, useSelectedPair } from '../contexts/SelectedPairContext'
 // Import TraderProfileProvider and settings component
@@ -104,7 +107,7 @@ interface AnalysisResult {
   distanceToEMA: number
 }
 
-type TabId = 'learn' | 'market' | 'priceAction' | 'progress' | 'settings'
+type TabId = 'learn' | 'market' | 'analysis' | 'priceAction' | 'progress' | 'settings'
 
 // ============================================
 // MODULE DATA
@@ -1504,16 +1507,17 @@ function SettingsScreen() {
 
 function BottomNav({ activeTab, setActiveTab, selectedPair }: { activeTab: TabId, setActiveTab: (tab: TabId) => void, selectedPair: string | null }) {
   const tabs: { id: TabId; label: string; icon: React.ElementType }[] = [
-    { id: 'learn', label: 'Aprender', icon: GraduationCap },
+    { id: 'learn', label: 'Aprende', icon: GraduationCap },
     { id: 'market', label: 'Mercado', icon: Activity },
-    { id: 'priceAction', label: 'Price Action', icon: LineChart },
+    { id: 'analysis', label: 'Análisis', icon: LayoutDashboard },
+    { id: 'priceAction', label: 'PA', icon: LineChart },
     { id: 'progress', label: 'Progreso', icon: BarChart3 },
     { id: 'settings', label: 'Ajustes', icon: Settings },
   ]
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 bg-zinc-900/95 backdrop-blur-lg border-t border-zinc-800 safe-area-bottom">
-      <div className="flex items-center justify-around py-2">
+      <div className="flex items-center justify-around py-1.5">
         {tabs.map((tab) => {
           const Icon = tab.icon
           const isActive = activeTab === tab.id
@@ -1522,12 +1526,12 @@ function BottomNav({ activeTab, setActiveTab, selectedPair }: { activeTab: TabId
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex flex-col items-center gap-1 py-2 px-4 rounded-lg transition-colors ${
+              className={`flex flex-col items-center gap-0.5 py-1.5 px-2 rounded-lg transition-colors ${
                 isActive ? 'text-amber-400' : 'text-zinc-500 hover:text-zinc-300'
               }`}
             >
-              <Icon className={`w-5 h-5 ${isActive ? 'text-amber-400' : ''}`} />
-              <span className="text-xs">{tab.label}</span>
+              <Icon className={`w-4 h-4 ${isActive ? 'text-amber-400' : ''}`} />
+              <span className="text-[10px]">{tab.label}</span>
               {isActive && (
                 <div className="w-1 h-1 bg-amber-400 rounded-full" />
               )}
@@ -1602,6 +1606,7 @@ function AppContent() {
       <main className="px-4 py-4">
         {activeTab === 'learn' && <LearnScreen />}
         {activeTab === 'market' && <LiveMarketScreen />}
+        {activeTab === 'analysis' && <AnalysisPanelScreen />}
         {activeTab === 'priceAction' && <PriceActionScreen />}
         {activeTab === 'progress' && <ProgressScreen />}
         {activeTab === 'settings' && <SettingsScreen />}
