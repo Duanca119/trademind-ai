@@ -8,7 +8,7 @@ const nextConfig = {
     domains: ['binance.com', 'tradingview.com'],
     unoptimized: true,
   },
-  // Ensure service worker is not cached
+  // Ensure service worker and build-info are not cached
   async headers() {
     return [
       {
@@ -34,6 +34,27 @@ const nextConfig = {
           {
             key: 'Cache-Control',
             value: 'no-cache, no-store, must-revalidate',
+          },
+        ],
+      },
+      {
+        source: '/build-info.json',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'no-store, no-cache, must-revalidate, proxy-revalidate',
+          },
+          {
+            key: 'Pragma',
+            value: 'no-cache',
+          },
+          {
+            key: 'Expires',
+            value: '0',
+          },
+          {
+            key: 'Surrogate-Control',
+            value: 'no-store',
           },
         ],
       },
