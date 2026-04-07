@@ -1,5 +1,7 @@
 {
-  "buildId": "manual-update-1743465600000",
-  "buildTime": "2026-04-01T00:00:00.000Z",
-  "commitSha": "manual"
+  "buildId": "local-1775604948644",
+  "buildTime": "2026-04-07T23:35:48.644Z",
+  "commitSha": "local",
+  "deploymentUrl": "",
+  "env": "development"
 }

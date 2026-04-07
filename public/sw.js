@@ -1,6 +1,6 @@
-// TradeMind AI Service Worker - Development version
-// This file is auto-generated during build. Do not edit directly.
-const CACHE_VERSION = 'dev-local';
+// TradeMind AI Service Worker
+// VERSION is injected at build time by scripts/inject-sw-version.js
+const CACHE_VERSION = 'local-1775604897337';
 const CACHE_NAME = `trademind-ai-v${CACHE_VERSION}`;
 
 const STATIC_ASSETS = [
@@ -29,7 +29,7 @@ self.addEventListener('install', (event) => {
 // Fetch - Network first for HTML/API, cache first for static assets
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
-
+  
   // For API calls - always go to network, no cache
   if (url.pathname.startsWith('/api/')) {
     event.respondWith(
@@ -127,7 +127,7 @@ self.addEventListener('message', (event) => {
     console.log('[SW] Skip waiting requested - forcing activation');
     self.skipWaiting();
   }
-
+  
   // Handle version check from client
   if (event.data && event.data.type === 'CHECK_VERSION') {
     event.ports[0].postMessage({
@@ -136,7 +136,7 @@ self.addEventListener('message', (event) => {
       timestamp: Date.now()
     });
   }
-
+  
   // Force clear all caches and reload
   if (event.data && event.data.type === 'FORCE_UPDATE') {
     console.log('[SW] Force update requested');

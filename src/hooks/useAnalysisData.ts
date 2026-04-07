@@ -61,9 +61,20 @@ export interface AnalysisData {
 const TWELVE_DATA_API_KEY = '792522f333c3487a9102e68939c8e1e8'
 const TWELVE_DATA_BASE_URL = 'https://api.twelvedata.com'
 
-// Convert pair format: EUR/USD -> EURUSD
+// Convert pair format: EUR/USD -> EUR/USD (Twelve Data accepts both EURUSD and EUR/USD)
+// Using slash format for clarity
 const formatPairForAPI = (pair: string): string => {
-  return pair.replace('/', '')
+  // Twelve Data accepts both formats: "EURUSD" and "EUR/USD"
+  // We'll use the slash format which is more standard
+  if (pair.includes('/')) {
+    return pair
+  }
+  // If no slash, try to insert it (e.g., EURUSD -> EUR/USD)
+  // For forex pairs, typically 3 letters each
+  if (pair.length === 6) {
+    return `${pair.slice(0, 3)}/${pair.slice(3)}`
+  }
+  return pair
 }
 
 // ============================================
@@ -406,12 +417,15 @@ export function useAnalysisData(selectedPair: string | null) {
   })
 
   const fetchData = useCallback(async () => {
-    if (!selectedPair) return
+    // Use EUR/USD as default if no pair selected
+    const pairToFetch = selectedPair || 'EUR/USD'
     
-    setData(prev => ({ ...prev, isLoading: true, error: null }))
+    setData(prev => ({ ...prev, isLoading: true, error: null, pair: pairToFetch }))
     
     try {
-      const symbol = formatPairForAPI(selectedPair)
+      const symbol = formatPairForAPI(pairToFetch)
+      
+      console.log('[Analysis] Fetching data for symbol:', symbol, 'from pair:', pairToFetch)
       
       // Fetch 1H data (150 candles for better analysis)
       const response = await fetch(
@@ -484,11 +498,11 @@ export function useAnalysisData(selectedPair: string | null) {
       
       // Generate recommendation
       const recommendation = generateRecommendation(
-        selectedPair, trend, priceInZone, zoneType, nearEMA, sweepDetected, sweepInfo
+        pairToFetch, trend, priceInZone, zoneType, nearEMA, sweepDetected, sweepInfo
       )
       
       setData({
-        pair: selectedPair,
+        pair: pairToFetch,
         currentPrice,
         trend,
         trendStrength,
