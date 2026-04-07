@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3000 2>&1 | tee dev.log",
-    "prebuild": "node scripts/generate-build-info.js",
+    "prebuild": "node scripts/generate-build-info.js && node scripts/inject-sw-version.js",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
