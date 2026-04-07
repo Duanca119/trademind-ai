@@ -458,6 +458,18 @@ interface CandlePattern {
   timestamp: string
 }
 
+// Key Zone interface for Support/Resistance detection
+interface KeyZone {
+  low: number
+  high: number
+  mid: number
+  type: 'support' | 'resistance'
+  touches: number
+  strength: 'fuerte' | 'moderado' | 'débil'
+  distance: number // percentage from current price
+  isNearEMA: boolean // zone is near EMA 50
+}
+
 interface PriceActionAnalysis {
   symbol: string
   currentPrice: number
@@ -490,14 +502,246 @@ interface PriceActionAnalysis {
     timestamp: string
   }[]
   
-  // Key levels
+  // Key levels (simple - kept for compatibility)
   keyLevels: {
     resistance: number[]
     support: number[]
   }
   
+  // NEW: Key Zones with detailed info
+  keyZones: {
+    supports: KeyZone[]
+    resistances: KeyZone[]
+    nearestSupport: KeyZone | null
+    nearestResistance: KeyZone | null
+    priceInZone: boolean
+    zoneMessage: string
+  }
+  
   // Summary
   summary: string
+}
+
+// ============================================
+// KEY ZONES DETECTION (Swing Highs/Lows)
+// ============================================
+
+// Detect Swing Highs (resistance zones)
+function detectSwingHighs(highs: number[], lookback: number = 2): { index: number; price: number }[] {
+  const swingHighs: { index: number; price: number }[] = []
+  
+  for (let i = lookback; i < highs.length - lookback; i++) {
+    const currentHigh = highs[i]
+    let isSwingHigh = true
+    
+    // Check if current high is higher than neighbors
+    for (let j = i - lookback; j <= i + lookback; j++) {
+      if (j !== i && highs[j] >= currentHigh) {
+        isSwingHigh = false
+        break
+      }
+    }
+    
+    if (isSwingHigh) {
+      swingHighs.push({ index: i, price: currentHigh })
+    }
+  }
+  
+  return swingHighs
+}
+
+// Detect Swing Lows (support zones)
+function detectSwingLows(lows: number[], lookback: number = 2): { index: number; price: number }[] {
+  const swingLows: { index: number; price: number }[] = []
+  
+  for (let i = lookback; i < lows.length - lookback; i++) {
+    const currentLow = lows[i]
+    let isSwingLow = true
+    
+    // Check if current low is lower than neighbors
+    for (let j = i - lookback; j <= i + lookback; j++) {
+      if (j !== i && lows[j] <= currentLow) {
+        isSwingLow = false
+        break
+      }
+    }
+    
+    if (isSwingLow) {
+      swingLows.push({ index: i, price: currentLow })
+    }
+  }
+  
+  return swingLows
+}
+
+// Group nearby levels into zones (±0.2%)
+function groupLevelsIntoZones(
+  levels: { index: number; price: number }[],
+  currentPrice: number,
+  type: 'support' | 'resistance',
+  ema50: number
+): KeyZone[] {
+  if (levels.length === 0) return []
+  
+  // Sort by price
+  const sorted = [...levels].sort((a, b) => a.price - b.price)
+  
+  // Group nearby levels (within 0.2% of each other)
+  const groups: { prices: number[]; indices: number[] }[] = []
+  let currentGroup: { prices: number[]; indices: number[] } = { prices: [], indices: [] }
+  
+  const threshold = currentPrice * 0.002 // 0.2%
+  
+  for (const level of sorted) {
+    if (currentGroup.prices.length === 0) {
+      currentGroup.prices.push(level.price)
+      currentGroup.indices.push(level.index)
+    } else {
+      const lastPrice = currentGroup.prices[currentGroup.prices.length - 1]
+      if (Math.abs(level.price - lastPrice) <= threshold) {
+        currentGroup.prices.push(level.price)
+        currentGroup.indices.push(level.index)
+      } else {
+        if (currentGroup.prices.length > 0) {
+          groups.push(currentGroup)
+        }
+        currentGroup = { prices: [level.price], indices: [level.index] }
+      }
+    }
+  }
+  
+  if (currentGroup.prices.length > 0) {
+    groups.push(currentGroup)
+  }
+  
+  // Convert groups to zones
+  const zones: KeyZone[] = groups
+    .filter(group => group.prices.length >= 2) // Minimum 2 touches
+    .map(group => {
+      const minPrice = Math.min(...group.prices)
+      const maxPrice = Math.max(...group.prices)
+      const mid = (minPrice + maxPrice) / 2
+      const touches = group.prices.length
+      
+      // Zone width (expand a bit beyond min/max)
+      const zoneWidth = currentPrice * 0.001 // 0.1% expansion
+      const low = minPrice - zoneWidth
+      const high = maxPrice + zoneWidth
+      
+      // Distance from current price
+      const distance = Math.abs((mid - currentPrice) / currentPrice) * 100
+      
+      // Check if zone is near EMA 50
+      const emaDistance = Math.abs((mid - ema50) / ema50) * 100
+      const isNearEMA = emaDistance <= 0.3 // Within 0.3% of EMA
+      
+      // Strength based on touches
+      let strength: 'fuerte' | 'moderado' | 'débil' = 'débil'
+      if (touches >= 4) strength = 'fuerte'
+      else if (touches >= 3) strength = 'moderado'
+      
+      return {
+        low,
+        high,
+        mid,
+        type,
+        touches,
+        strength,
+        distance,
+        isNearEMA
+      }
+    })
+  
+  // Sort by distance (closest first)
+  return zones.sort((a, b) => a.distance - b.distance)
+}
+
+// Detect key zones from 1H data
+function detectKeyZones(
+  highs: number[],
+  lows: number[],
+  currentPrice: number,
+  ema50: number,
+  trend: 'alcista' | 'bajista' | 'lateral'
+): {
+  supports: KeyZone[]
+  resistances: KeyZone[]
+  nearestSupport: KeyZone | null
+  nearestResistance: KeyZone | null
+  priceInZone: boolean
+  zoneMessage: string
+} {
+  // Detect swing points
+  const swingHighs = detectSwingHighs(highs)
+  const swingLows = detectSwingLows(lows)
+  
+  // Group into zones
+  const allResistanceZones = groupLevelsIntoZones(swingHighs, currentPrice, 'resistance', ema50)
+  const allSupportZones = groupLevelsIntoZones(swingLows, currentPrice, 'support', ema50)
+  
+  // Filter: only zones on correct side of price
+  const resistances = allResistanceZones.filter(z => z.low > currentPrice).slice(0, 3)
+  const supports = allSupportZones.filter(z => z.high < currentPrice).slice(0, 3)
+  
+  // Find nearest
+  const nearestSupport = supports.length > 0 ? supports[0] : null
+  const nearestResistance = resistances.length > 0 ? resistances[0] : null
+  
+  // Check if price is currently in a zone
+  let priceInZone = false
+  let zoneMessage = ''
+  
+  // Check support zones
+  for (const zone of supports) {
+    if (currentPrice >= zone.low && currentPrice <= zone.high) {
+      priceInZone = true
+      if (zone.isNearEMA) {
+        zoneMessage = `🎯 Precio en zona de SOPORTE clave + cerca de EMA 50 → Posible entrada larga en 5M`
+      } else {
+        zoneMessage = `📍 Precio en zona de soporte (${zone.touches} toques). Esperar confirmación.`
+      }
+      break
+    }
+  }
+  
+  // Check resistance zones
+  if (!priceInZone) {
+    for (const zone of resistances) {
+      if (currentPrice >= zone.low && currentPrice <= zone.high) {
+        priceInZone = true
+        if (zone.isNearEMA) {
+          zoneMessage = `🎯 Precio en zona de RESISTENCIA clave + cerca de EMA 50 → Posible entrada corta en 5M`
+        } else {
+          zoneMessage = `📍 Precio en zona de resistencia (${zone.touches} toques). Esperar confirmación.`
+        }
+        break
+      }
+    }
+  }
+  
+  // If not in zone, check proximity to nearest
+  if (!priceInZone) {
+    if (nearestSupport && nearestSupport.distance < 0.5) {
+      zoneMessage = `⏳ Precio cerca de soporte (${nearestSupport.distance.toFixed(2)}%). Preparar entrada.`
+    } else if (nearestResistance && nearestResistance.distance < 0.5) {
+      zoneMessage = `⏳ Precio cerca de resistencia (${nearestResistance.distance.toFixed(2)}%). Preparar entrada.`
+    } else {
+      zoneMessage = trend === 'alcista' 
+        ? '⏳ Esperar retroceso a zona de soporte para entrada larga.'
+        : trend === 'bajista'
+        ? '⏳ Esperar rebote en resistencia para entrada corta.'
+        : '⏳ Mercado lateral. Esperar definición de dirección.'
+    }
+  }
+  
+  return {
+    supports,
+    resistances,
+    nearestSupport,
+    nearestResistance,
+    priceInZone,
+    zoneMessage
+  }
 }
 
 // Detect candle patterns
@@ -704,21 +948,26 @@ async function analyzePriceAction(symbol: string): Promise<PriceActionAnalysis |
       }
     })
     
-    // Find key levels (support/resistance)
+    // Find key levels (support/resistance) - simple version for compatibility
     const sortedHighs = [...highs].sort((a, b) => b - a)
     const sortedLows = [...lows].sort((a, b) => a - b)
     
     const resistance = sortedHighs.slice(0, 3)
     const support = sortedLows.slice(0, 3)
     
-    // Generate summary
+    // NEW: Detect key zones using Swing Highs/Lows
+    const keyZones = detectKeyZones(highs, lows, currentPrice, ema50, trendDirection)
+    
+    // Generate summary with zone info
     let summary = `El ${symbol} muestra una tendencia ${trendDirection}`
     
-    if (patterns.length > 0) {
+    if (keyZones.priceInZone) {
+      summary += `. ${keyZones.zoneMessage}`
+    } else if (patterns.length > 0) {
       const mainPattern = patterns[0]
       summary += `. Se detectó ${mainPattern.type} con señal ${mainPattern.direction === 'bullish' ? 'alcista' : mainPattern.direction === 'bearish' ? 'bajista' : 'neutral'}.`
     } else {
-      summary += '. No se detectaron patrones de velas significativos recientemente.'
+      summary += `. ${keyZones.zoneMessage}`
     }
     
     return {
@@ -740,6 +989,7 @@ async function analyzePriceAction(symbol: string): Promise<PriceActionAnalysis |
         resistance,
         support
       },
+      keyZones,
       summary
     }
   } catch (error) {

@@ -13,7 +13,8 @@ import {
   Info,
   ChevronUp,
   ChevronDown,
-  Minus
+  Minus,
+  Layers
 } from 'lucide-react'
 import { useSelectedPair } from '../contexts/SelectedPairContext'
 
@@ -27,6 +28,17 @@ interface CandlePattern {
   strength: 'fuerte' | 'moderado' | 'débil'
   description: string
   timestamp: string
+}
+
+interface KeyZone {
+  low: number
+  high: number
+  mid: number
+  type: 'support' | 'resistance'
+  touches: number
+  strength: 'fuerte' | 'moderado' | 'débil'
+  distance: number
+  isNearEMA: boolean
 }
 
 interface PriceActionAnalysis {
@@ -57,6 +69,14 @@ interface PriceActionAnalysis {
   keyLevels: {
     resistance: number[]
     support: number[]
+  }
+  keyZones: {
+    supports: KeyZone[]
+    resistances: KeyZone[]
+    nearestSupport: KeyZone | null
+    nearestResistance: KeyZone | null
+    priceInZone: boolean
+    zoneMessage: string
   }
   summary: string
 }
@@ -350,33 +370,178 @@ export default function PriceActionScreen() {
             </div>
           </div>
 
-          {/* Key Levels */}
+          {/* Key Zones - Swing Highs/Lows Detection */}
           <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-4">
-            <h3 className="font-semibold mb-3">Niveles Clave</h3>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold flex items-center gap-2">
+                <Layers className="w-5 h-5 text-amber-400" />
+                Zonas Clave 1H
+              </h3>
+              <span className="text-xs text-zinc-500">Swing Highs/Lows</span>
+            </div>
             
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <p className="text-xs text-zinc-500 mb-2">Resistencias</p>
-                <div className="space-y-1">
-                  {analysis.keyLevels.resistance.map((level, i) => (
-                    <div key={i} className="flex items-center gap-2 text-sm">
-                      <ChevronUp className="w-4 h-4 text-red-400" />
-                      <span className="font-mono">{level.toFixed(selectedPair.includes('JPY') ? 3 : 5)}</span>
+            {/* Zone Message Alert */}
+            {analysis.keyZones?.priceInZone && (
+              <div className="mb-4 p-3 bg-gradient-to-r from-amber-500/20 to-orange-500/20 border border-amber-500/30 rounded-lg">
+                <p className="text-sm font-medium text-amber-300">{analysis.keyZones.zoneMessage}</p>
+              </div>
+            )}
+            
+            {/* Resistances - Red Zones */}
+            <div className="mb-4">
+              <p className="text-xs text-red-400 font-medium mb-2 flex items-center gap-1">
+                <ChevronUp className="w-4 h-4" />
+                RESISTENCIAS
+              </p>
+              <div className="space-y-2">
+                {analysis.keyZones?.resistances?.map((zone, i) => (
+                  <div 
+                    key={i}
+                    className="relative bg-gradient-to-r from-red-500/20 to-red-500/10 border-l-4 border-red-500 rounded-r-lg p-3"
+                  >
+                    {/* Zone Visual Bar */}
+                    <div className="absolute inset-y-0 right-0 w-1/3 bg-red-500/10 rounded-r-lg" />
+                    
+                    <div className="relative flex items-center justify-between">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-bold text-red-300">
+                            {zone.low.toFixed(selectedPair.includes('JPY') ? 3 : 5)}
+                          </span>
+                          <span className="text-zinc-500">—</span>
+                          <span className="font-mono font-bold text-red-300">
+                            {zone.high.toFixed(selectedPair.includes('JPY') ? 3 : 5)}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-xs text-zinc-500">
+                            {zone.touches} toques
+                          </span>
+                          <span className={`text-xs px-1.5 py-0.5 rounded ${
+                            zone.strength === 'fuerte' 
+                              ? 'bg-red-500/30 text-red-300' 
+                              : zone.strength === 'moderado'
+                              ? 'bg-orange-500/30 text-orange-300'
+                              : 'bg-zinc-500/30 text-zinc-400'
+                          }`}>
+                            {zone.strength}
+                          </span>
+                          {zone.isNearEMA && (
+                            <span className="text-xs px-1.5 py-0.5 rounded bg-purple-500/30 text-purple-300">
+                              EMA 50
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-xs text-zinc-400">
+                          {zone.distance.toFixed(2)}%
+                        </span>
+                      </div>
                     </div>
-                  ))}
+                  </div>
+                ))}
+                {(!analysis.keyZones?.resistances || analysis.keyZones.resistances.length === 0) && (
+                  <div className="text-xs text-zinc-500 italic p-2">
+                    No hay zonas de resistencia detectadas
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            {/* Supports - Green Zones */}
+            <div>
+              <p className="text-xs text-emerald-400 font-medium mb-2 flex items-center gap-1">
+                <ChevronDown className="w-4 h-4" />
+                SOPORTES
+              </p>
+              <div className="space-y-2">
+                {analysis.keyZones?.supports?.map((zone, i) => (
+                  <div 
+                    key={i}
+                    className="relative bg-gradient-to-r from-emerald-500/20 to-emerald-500/10 border-l-4 border-emerald-500 rounded-r-lg p-3"
+                  >
+                    {/* Zone Visual Bar */}
+                    <div className="absolute inset-y-0 right-0 w-1/3 bg-emerald-500/10 rounded-r-lg" />
+                    
+                    <div className="relative flex items-center justify-between">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-bold text-emerald-300">
+                            {zone.low.toFixed(selectedPair.includes('JPY') ? 3 : 5)}
+                          </span>
+                          <span className="text-zinc-500">—</span>
+                          <span className="font-mono font-bold text-emerald-300">
+                            {zone.high.toFixed(selectedPair.includes('JPY') ? 3 : 5)}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-xs text-zinc-500">
+                            {zone.touches} toques
+                          </span>
+                          <span className={`text-xs px-1.5 py-0.5 rounded ${
+                            zone.strength === 'fuerte' 
+                              ? 'bg-emerald-500/30 text-emerald-300' 
+                              : zone.strength === 'moderado'
+                              ? 'bg-teal-500/30 text-teal-300'
+                              : 'bg-zinc-500/30 text-zinc-400'
+                          }`}>
+                            {zone.strength}
+                          </span>
+                          {zone.isNearEMA && (
+                            <span className="text-xs px-1.5 py-0.5 rounded bg-purple-500/30 text-purple-300">
+                              EMA 50
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-xs text-zinc-400">
+                          {zone.distance.toFixed(2)}%
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {(!analysis.keyZones?.supports || analysis.keyZones.supports.length === 0) && (
+                  <div className="text-xs text-zinc-500 italic p-2">
+                    No hay zonas de soporte detectadas
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            {/* Nearest Levels Summary */}
+            {(analysis.keyZones?.nearestSupport || analysis.keyZones?.nearestResistance) && (
+              <div className="mt-4 p-3 bg-zinc-800/50 rounded-lg border border-zinc-700/50">
+                <p className="text-xs text-zinc-400 mb-2">📍 Niveles más cercanos al precio actual</p>
+                <div className="flex justify-between text-sm">
+                  {analysis.keyZones?.nearestSupport && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-emerald-400">Soporte:</span>
+                      <span className="font-mono">
+                        {analysis.keyZones.nearestSupport.mid.toFixed(selectedPair.includes('JPY') ? 3 : 5)}
+                      </span>
+                    </div>
+                  )}
+                  {analysis.keyZones?.nearestResistance && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-red-400">Resistencia:</span>
+                      <span className="font-mono">
+                        {analysis.keyZones.nearestResistance.mid.toFixed(selectedPair.includes('JPY') ? 3 : 5)}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
-              <div>
-                <p className="text-xs text-zinc-500 mb-2">Soportes</p>
-                <div className="space-y-1">
-                  {analysis.keyLevels.support.map((level, i) => (
-                    <div key={i} className="flex items-center gap-2 text-sm">
-                      <ChevronDown className="w-4 h-4 text-emerald-400" />
-                      <span className="font-mono">{level.toFixed(selectedPair.includes('JPY') ? 3 : 5)}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
+            )}
+            
+            {/* Zone Detection Info */}
+            <div className="mt-3 flex items-start gap-2 p-2 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+              <Info className="w-3 h-3 text-blue-400 mt-0.5 flex-shrink-0" />
+              <p className="text-xs text-blue-300">
+                Zonas detectadas con Swing Highs/Lows en 1H. Se agrupan niveles cercanos (±0.2%) con mínimo 2 toques.
+              </p>
             </div>
           </div>
 
