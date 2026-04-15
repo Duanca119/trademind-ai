@@ -102,6 +102,31 @@ CREATE POLICY "Allow all operations for authenticated users" ON user_trader_prof
   WITH CHECK (true);
 
 -- ============================================
+-- 6. CORREGIR VISTA TODAY_BEST_SIGNALS
+-- ============================================
+-- Eliminar y recrear sin SECURITY DEFINER
+
+DROP VIEW IF EXISTS today_best_signals;
+
+CREATE VIEW today_best_signals AS
+SELECT 
+  symbol,
+  signal,
+  confidence,
+  current_price,
+  created_at
+FROM market_analysis
+WHERE created_at >= CURRENT_DATE
+  AND signal != 'WAIT'
+ORDER BY 
+  CASE confidence 
+    WHEN 'Alta' THEN 3 
+    WHEN 'Media' THEN 2 
+    WHEN 'Baja' THEN 1 
+  END DESC,
+  created_at DESC;
+
+-- ============================================
 -- VERIFICAR RLS HABILITADO
 -- ============================================
 
